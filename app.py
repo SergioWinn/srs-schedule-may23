@@ -167,7 +167,7 @@ def render_grid_section(tipe):
     # 2. Ambil data USER dari Supabase
     df_user = pd.DataFrame()
     if db_connected:
-        res = supabase.table("srs_schedule").select("*").eq("tipe_tiket", tipe).execute()
+        res = supabase.table("srs_schedule").select("*").eq("type", tipe).execute()
         if res.data:
             df_user = pd.DataFrame(res.data)
 

@@ -118,7 +118,7 @@ with tab2:
     if db_connected:
         try:
             # Mengambil data dari PostgreSQL (Supabase)
-            response = supabase.table("srs_jadwal").select("*").execute()
+            response = supabase.table("srs_schedule").select("*").execute()
             data_db = response.data
             
             if data_db:

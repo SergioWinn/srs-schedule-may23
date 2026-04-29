@@ -103,7 +103,7 @@ with tab1:
                             "jalur": jalur
                         }
                         try:
-                            supabase.table("srs_jadwal").insert(data_insert).execute()
+                            supabase.table("srs_schedule").insert(data_insert).execute()
                             st.success(f"Mantap! Jadwal {nama_user} bersama {pilihan_member} berhasil disimpan.")
                         except Exception as e:
                             st.error(f"Gagal menyimpan ke database: {e}")

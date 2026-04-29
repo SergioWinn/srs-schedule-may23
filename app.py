@@ -1,13 +1,11 @@
 import streamlit as st
-import requests
 import pandas as pd
-from supabase import create_client, Client
+from supabase import create_client
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="SRS M&G Coordinator", page_icon="🎫", layout="wide")
 
 # --- KONEKSI DATABASE (SUPABASE) ---
-# Mengambil kredensial dari Streamlit Secrets nantinya
 @st.cache_resource
 def init_connection():
     url = st.secrets["SUPABASE_URL"]
@@ -21,127 +19,106 @@ except Exception as e:
     st.error("Gagal terhubung ke Database. Pastikan Streamlit Secrets sudah diatur.")
     db_connected = False
 
-# --- FUNGSI TARIK DATA API JKT48 ---
-@st.cache_data(ttl=3600) # Cache 1 jam agar tidak spam server JKT48
-def fetch_api(url):
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        # Menyesuaikan struktur JSON. Biasanya data ada di dalam key tertentu.
-        # Jika strukturnya langsung list, kembalikan data. Jika di dalam dict, cari key-nya.
-        if isinstance(data, dict):
-            # Mencari list di dalam dictionary
-            for key, value in data.items():
-                if isinstance(value, list):
-                    return value
-        return data if isinstance(data, list) else []
-    except Exception as e:
-        st.error(f"Gagal mengambil jadwal resmi: {e}")
-        return []
+# --- FUNGSI AMBIL DATA DATABASE ---
+def get_srs_data():
+    if db_connected:
+        response = supabase.table("srs_schedule").select("*").execute()
+        if response.data:
+            return pd.DataFrame(response.data)
+    return pd.DataFrame()
 
-API_2SHOT = "https://jkt48.com/api/v1/exclusives/EX579E/bonus?lang=id"
-API_MNG = "https://jkt48.com/api/v1/exclusives/EXE588/bonus?lang=id"
+# --- FORM MELAYANG (MODAL DIALOG) ---
+@st.dialog("📝 Input Data Antrean SRS")
+def form_input_melayang():
+    st.write("Pastikan data sesuai dengan e-ticket resmi kamu.")
+    
+    with st.form("form_input"):
+        nama_user = st.text_input("Nama Kamu (Panggilan di SRS)", placeholder="Misal: Sergio / Budi")
+        tipe_tiket = st.radio("Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True)
+        
+        # Menggunakan text input untuk nama member agar terhindar dari bug ID angka
+        pilihan_member = st.text_input("Nama Member", placeholder="Misal: Elin, Kimmy, dll")
+        
+        col_s, col_j = st.columns(2)
+        with col_s:
+            sesi = st.text_input("Sesi / Jam", placeholder="Misal: Sesi 1 / 10:00")
+        with col_j:
+            jalur = st.text_input("Jalur / Bilik", placeholder="Misal: Jalur 5")
+            
+        submit = st.form_submit_button("Simpan Jadwal", type="primary")
+        
+        if submit and db_connected:
+            if nama_user and pilihan_member and sesi and jalur:
+                data_insert = {
+                    "nama_user": nama_user,
+                    "tipe_tiket": tipe_tiket,
+                    "nama_member": pilihan_member,
+                    "sesi": sesi,
+                    "jalur": jalur
+                }
+                supabase.table("srs_schedule").insert(data_insert).execute()
+                st.success(f"Mantap! Jadwal bareng {pilihan_member} berhasil disimpan.")
+                st.rerun() # Refresh halaman agar tabel langsung update
+            else:
+                st.warning("Harap isi semua kolom!")
 
 # --- HEADER & UI ---
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    st.image("banner.jpg", width="stretch")
+col_logo, col_banner = st.columns([1, 4])
+with col_logo:
+    st.image("logo.jpg", width=150)
+with col_banner:
+    st.markdown("<h1 style='color: #b45309; margin-bottom: 0;'>SUMBER REZEKI SQUAD</h1>", unsafe_allow_html=True)
+    st.markdown("<h3>Portal Koordinasi Timetable M&G Festival</h3>", unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center; color: #b45309;'>SUMBER REZEKI SQUAD</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center;'>Portal Koordinasi LOVE DREAM PASSION (23 Mei 2026)</h3>", unsafe_allow_html=True)
 st.divider()
 
-# --- TABS UNTUK INPUT DAN DASHBOARD ---
-tab1, tab2 = st.tabs(["📝 Input Jadwalmu", "🔍 Cari Barengan (Dashboard)"])
+# --- TOMBOL MELAYANG (TRIGGER) ---
+col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+with col_btn2:
+    if st.button("➕ KLIK DI SINI UNTUK INPUT JADWALMU", type="primary", use_container_width=True):
+        form_input_melayang()
 
-with tab1:
-    col_img, col_form = st.columns([1, 2])
-    with col_img:
-        st.image("logo.jpg", width=250)
-        st.info("Pastikan data yang kamu masukkan sesuai dengan e-ticket resmi.")
+st.write("") # Spacing
 
-    with col_form:
-        tipe_tiket = st.radio("Pilih Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True)
-        
-        # Tarik data dari API berdasarkan pilihan
-        url_target = API_2SHOT if tipe_tiket == "2-Shot" else API_MNG
-        raw_data = fetch_api(url_target)
-        
-        if raw_data:
-            df_api = pd.DataFrame(raw_data)
-            
-            # Catatan: Sesuaikan nama kolom ('memberName', 'session', 'lane') 
-            # dengan struktur asli JSON dari API JKT48 setelah kamu mengeceknya.
-            # Di bawah ini adalah asumsi penamaan umum.
-            kolom_member = 'name' if 'name' in df_api.columns else df_api.columns[0]
-            
-            with st.form("form_input"):
-                nama_user = st.text_input("Nama Kamu (Panggilan di SRS)", placeholder="Misal: Budi, Andi")
-                
-                list_member = df_api[kolom_member].dropna().unique().tolist()
-                pilihan_member = st.selectbox("Pilih Member", sorted(list_member))
-                
-                # Input manual untuk sesi & jalur sebagai fallback yang aman, 
-                # karena struktur detail API bisa bervariasi
-                col_s, col_j = st.columns(2)
-                with col_s:
-                    sesi = st.text_input("Sesi (Sesuai Tiket)", placeholder="Misal: Sesi 1")
-                with col_j:
-                    jalur = st.text_input("Jalur / Bilik", placeholder="Misal: Jalur 5")
-                
-                submit = st.form_submit_button("Simpan Jadwal")
-                
-                if submit and db_connected:
-                    if nama_user and sesi and jalur:
-                        # Insert ke PostgreSQL (Supabase)
-                        data_insert = {
-                            "nama_user": nama_user,
-                            "tipe_tiket": tipe_tiket,
-                            "nama_member": pilihan_member,
-                            "sesi": sesi,
-                            "jalur": jalur
-                        }
-                        try:
-                            supabase.table("srs_schedule").insert(data_insert).execute()
-                            st.success(f"Mantap! Jadwal {nama_user} bersama {pilihan_member} berhasil disimpan.")
-                        except Exception as e:
-                            st.error(f"Gagal menyimpan ke database: {e}")
-                    else:
-                        st.warning("Harap isi semua kolom!")
+# --- TABS TIMETABLE ---
+tab_2s, tab_mng = st.tabs(["📸 Timetable 2-Shot", "🤝 Timetable M&G"])
 
-with tab2:
-    st.subheader("Data Antrean Komunitas")
-    if st.button("🔄 Refresh Data"):
-        st.cache_data.clear()
+# Tarik data terbaru
+df_all = get_srs_data()
+
+def render_timetable(df, tipe):
+    if df.empty:
+        st.info(f"Belum ada data antrean untuk {tipe}.")
+        return
         
-    if db_connected:
-        try:
-            # Mengambil data dari PostgreSQL (Supabase)
-            response = supabase.table("srs_schedule").select("*").execute()
-            data_db = response.data
-            
-            if data_db:
-                df_db = pd.DataFrame(data_db)
-                # Membuang kolom id dan created_at agar tabel terlihat bersih
-                df_tampil = df_db[['nama_user', 'tipe_tiket', 'nama_member', 'sesi', 'jalur']]
-                df_tampil.columns = ['Nama SRS', 'Tipe', 'Member', 'Sesi', 'Jalur']
-                
-                # Fitur Filter
-                col_f1, col_f2 = st.columns(2)
-                with col_f1:
-                    filter_sesi = st.selectbox("Filter Sesi:", ["Semua"] + df_tampil['Sesi'].unique().tolist())
-                with col_f2:
-                    filter_jalur = st.selectbox("Filter Jalur:", ["Semua"] + df_tampil['Jalur'].unique().tolist())
-                
-                # Aplikasikan filter
-                if filter_sesi != "Semua":
-                    df_tampil = df_tampil[df_tampil['Sesi'] == filter_sesi]
-                if filter_jalur != "Semua":
-                    df_tampil = df_tampil[df_tampil['Jalur'] == filter_jalur]
-                
-                st.dataframe(df_tampil, use_container_width=True, hide_index=True)
-            else:
-                st.info("Belum ada data jadwal yang masuk. Ayo input jadwalmu!")
-        except Exception as e:
-            st.error(f"Gagal mengambil data: {e}")
+    # Filter berdasarkan tipe
+    df_filtered = df[df['tipe_tiket'] == tipe].copy()
+    
+    if df_filtered.empty:
+        st.info(f"Belum ada data antrean untuk {tipe}.")
+        return
+
+    # MENGELOMPOKKAN DATA (Group By)
+    # Ini akan menggabungkan nama-nama anak SRS yang berada di sesi, member, dan jalur yang sama
+    df_grouped = df_filtered.groupby(['sesi', 'jalur', 'nama_member'])['nama_user'].apply(
+        lambda x: ', '.join(x) # Menggabungkan nama dengan koma
+    ).reset_index()
+    
+    # Merapikan nama kolom untuk ditampilkan
+    df_grouped.columns = ['Sesi / Jam', 'Jalur', 'Member', 'Anak SRS di Antrean Ini']
+    
+    # Tampilkan tabel interaktif
+    st.dataframe(
+        df_grouped,
+        use_container_width=True,
+        hide_index=True,
+        height=400
+    )
+
+with tab_2s:
+    st.subheader("Titik Kumpul 2-Shot")
+    render_timetable(df_all, "2-Shot")
+
+with tab_mng:
+    st.subheader("Titik Kumpul Meet & Greet")
+    render_timetable(df_all, "Meet & Greet")

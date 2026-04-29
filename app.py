@@ -1,5 +1,5 @@
 import streamlit as st
-import pd as pd
+import pandas as pd
 import requests
 from supabase import create_client
 
@@ -69,7 +69,13 @@ def form_input_srs():
         
         if st.button("Simpan Jadwal", type="primary", use_container_width=True):
             if nama_user and db_connected:
-                supabase.table("srs_schedule").insert({"name": nama_user, "type": tipe_tiket, "member": p_member, "sesi": p_sesi, "jalur": p_jalur}).execute()
+                supabase.table("srs_schedule").insert({
+                    "name": nama_user, 
+                    "type": tipe_tiket, 
+                    "member": p_member, 
+                    "sesi": p_sesi, 
+                    "jalur": p_jalur
+                }).execute()
                 st.rerun()
     else:
         st.warning("API JKT48 sedang down.")
@@ -87,8 +93,7 @@ with col_btn:
 
 st.divider()
 
-# --- 6. RENDER GRID DENGAN FRAGMENT (MAGIC REFRESH) ---
-# Bagian ini akan refresh sendiri setiap 5 detik TANPA menutup modal
+# --- 6. RENDER GRID DENGAN FRAGMENT ---
 @st.fragment(run_every=5)
 def render_realtime_dashboard():
     tab1, tab2 = st.tabs(["📸 2-Shot", "🤝 Meet & Greet"])
@@ -114,12 +119,10 @@ def render_grid_section(tipe):
             df_final = df_master.copy()
             df_final['nama_user'] = None
     else:
-        st.error("API Down.")
         return
 
     df_final['nama_user'] = df_final['nama_user'].apply(lambda x: x if isinstance(x, list) else [])
     
-    # Search ditaruh di dalam fragment agar responsif
     search_query = st.text_input(f"🔍 Cari Sesi / Member / Anak SRS di {tipe}...", key=f"search_{tipe}")
     if search_query:
         mask = df_final.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)

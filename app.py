@@ -5,10 +5,9 @@ from supabase import create_client
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. KONFIGURASI HALAMAN ---
-# Mengubah judul tab browser sesuai permintaan
 st.set_page_config(page_title="SRS - LOVE DREAM PASSION", page_icon="🎫", layout="wide")
 
-# --- 2. LOGIKA PENDAKIAN REFRESH ---
+# --- 2. LOGIKA JEDA REFRESH ---
 if "is_inputting" not in st.session_state:
     st.session_state.is_inputting = False
 
@@ -26,13 +25,17 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 .srs-card.empty { border-bottom: 5px solid #475569; opacity: 0.8; }
 .c-jalur { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
 .c-member { font-weight: 800; font-size: 18px; color: #f8fafc; margin-bottom: 15px; }
-.c-users { font-size: 13px; font-weight: 600; padding: 10px; border-radius: 12px; margin-top: auto; line-height: 1.4; }
+
+/* Struktur Badge Baru yang Lebih Rapi */
+.c-users { padding: 10px; border-radius: 12px; margin-top: auto; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
 .srs-card.active .c-users { background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); }
 .srs-card.empty .c-users { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
+.user-count { font-size: 11px; text-transform: uppercase; font-weight: 800; opacity: 0.9; }
+.user-names { font-size: 13px; font-weight: 600; line-height: 1.3; }
+
 .live-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; color: #10B981; background: rgba(16,185,129,0.1); padding: 5px 15px; border-radius: 30px; border: 1px solid rgba(16,185,129,0.2); }
 .live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
-.user-count { display: block; font-size: 11px; margin-bottom: 4px; text-transform: uppercase; font-weight: 800;}
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -153,8 +156,12 @@ def render_grid_section(tipe):
             count = len(users_list)
             card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")
             
-            # BUG FIX: Menambahkan <br/> agar spasi antara jumlah orang dan nama menjadi rapi
-            html += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><span class="user-count">👥 {count} ORANG</span><br/>{users_str}</div></div>'
+            # HTML BARU: Pemisahan <div> count dan <div> nama agar jaraknya diatur CSS secara elegan
+            html += f'<div class="srs-card {card_class}">'
+            html += f'<div class="c-jalur">{jalur}</div>'
+            html += f'<div class="c-member">{member}</div>'
+            html += f'<div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div>'
+            html += '</div>'
             
         st.markdown(html + '</div>', unsafe_allow_html=True)
 

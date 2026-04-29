@@ -11,11 +11,7 @@ st.set_page_config(page_title="SRS - LOVE DREAM PASSION", page_icon="🎫", layo
 if "is_inputting" not in st.session_state:
     st.session_state.is_inputting = False
 
-# Fungsi untuk mengubah state
-def set_inputting(status):
-    st.session_state.is_inputting = status
-
-# Auto-refresh hanya jika tidak sedang input
+# Auto-refresh 5 detik
 if not st.session_state.is_inputting:
     st_autorefresh(interval=5000, limit=None, key="srs_refresh")
 
@@ -71,6 +67,9 @@ API_URLS = {"2-Shot": "https://jkt48.com/api/v1/exclusives/EX579E/bonus?lang=id"
 # --- 5. FORM INPUT MODAL ---
 @st.dialog("📝 Input Jadwal SRS")
 def form_input_srs():
+    # Set status inputting saat modal terbuka
+    st.session_state.is_inputting = True
+    
     st.write("Auto-refresh dijeda...")
     nama_user = st.text_input("Nama Kamu (Panggilan SRS)")
     tipe_tiket = st.radio("Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True)
@@ -87,15 +86,15 @@ def form_input_srs():
             if st.button("Simpan Jadwal", type="primary", use_container_width=True):
                 if nama_user and db_connected:
                     supabase.table("srs_schedule").insert({"name": nama_user, "type": tipe_tiket, "member": p_member, "sesi": p_sesi, "jalur": p_jalur}).execute()
-                    set_inputting(False)
+                    st.session_state.is_inputting = False
                     st.rerun()
         with c2:
             if st.button("Batal / Tutup", use_container_width=True):
-                set_inputting(False)
+                st.session_state.is_inputting = False
                 st.rerun()
     else:
         if st.button("Tutup"):
-            set_inputting(False)
+            st.session_state.is_inputting = False
             st.rerun()
 
 # --- 6. UI UTAMA ---
@@ -104,19 +103,26 @@ with col_title:
     st.title("SUMBER REZEKI SQUAD")
     st.subheader("Meet & Greet Festival: LOVE DREAM PASSION")
     
-    # Indikator Status Refresh
-    if not st.session_state.is_inputting:
-        st.markdown('<div class="live-badge"><span class="live-dot"></span> LIVE UPDATE ON (5s)</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="live-badge" style="color:#FBBF24; background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.2);"><span class="live-dot" style="background:#FBBF24;"></span> PAUSED FOR INPUT</div>', unsafe_allow_html=True)
-        # Trik: Jika modal tertutup tapi state masih inputting, munculkan tombol reset
-        if st.button("🔄 Resume Refresh Manual"):
-            set_inputting(False)
-            st.rerun()
+    # Visual Badge
+    dot_color = "#10B981" if not st.session_state.is_inputting else "#FBBF24"
+    badge_text = "LIVE UPDATE ON (5s)" if not st.session_state.is_inputting else "PAUSED FOR INPUT"
+    st.markdown(f'''
+        <div class="live-badge" style="border-color: {dot_color}44;">
+            <span class="live-dot" style="background: {dot_color};"></span> {badge_text}
+        </div>
+    ''', unsafe_allow_html=True)
 
 with col_btn:
-    if st.button("➕ INPUT JADWALMU", type="primary", use_container_width=True, on_click=set_inputting, args=(True,)):
+    if st.button("➕ INPUT JADWALMU", type="primary", use_container_width=True):
         form_input_srs()
+
+# --- DETEKSI TUTUP MODAL OTOMATIS ---
+# Jika dialog tertutup, srs_refresh akan memicu rerun, 
+# dan bagian ini akan mereset is_inputting menjadi False
+if st.session_state.is_inputting:
+    # Cek apakah rerun dipicu oleh autorefresh saat modal terbuka (seharusnya tidak)
+    # Trik ini memastikan jika modal hilang dari layar, refresh akan menyala lagi di siklus berikutnya
+    st.session_state.is_inputting = False
 
 st.divider()
 
@@ -137,7 +143,7 @@ def render_grid_section(tipe):
             df_final = df_master.copy()
             df_final['nama_user'] = None
     else:
-        st.error("API JKT48 sedang down.")
+        st.error("API Down.")
         return
 
     df_final['nama_user'] = df_final['nama_user'].apply(lambda x: x if isinstance(x, list) else [])

@@ -21,14 +21,17 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
     border-radius: 15px; 
     padding: 20px 15px; 
     border: 1px solid rgba(255,255,255,0.1); 
-    border-bottom: 5px solid #10B981; 
     display: flex; 
     flex-direction: column; 
     text-align: center; 
     transition: 0.3s ease;
     height: 100%;
 }
-.srs-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-color: rgba(16,185,129,0.5); }
+.srs-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+
+/* Card Status Border */
+.srs-card.active { border-bottom: 5px solid #10B981; }
+.srs-card.empty { border-bottom: 5px solid #475569; opacity: 0.8; }
 
 /* Typography inside Card */
 .c-jalur { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px; }
@@ -38,16 +41,15 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 .c-users { 
     font-size: 13px; 
     font-weight: 600; 
-    color: #f59e0b; 
-    background: rgba(245, 158, 11, 0.1); 
     padding: 10px; 
     border-radius: 12px; 
-    margin-top: auto; /* Push to bottom */
-    border: 1px solid rgba(245, 158, 11, 0.2);
+    margin-top: auto;
 }
-.user-count { display: block; font-size: 11px; color: #10B981; margin-bottom: 3px; text-transform: uppercase; font-weight: 800;}
+.srs-card.active .c-users { background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); }
+.srs-card.empty .c-users { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
 
-/* Mobile optimization */
+.user-count { display: block; font-size: 11px; margin-bottom: 3px; text-transform: uppercase; font-weight: 800;}
+
 @media (max-width: 500px) { 
     .cards-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } 
     .srs-card { padding: 15px 10px; }
@@ -71,7 +73,7 @@ try:
 except Exception as e:
     db_connected = False
 
-# --- 4. FUNGSI AMBIL DATA API JKT48 ---
+# --- 4. FUNGSI AMBIL DATA API JKT48 (FIXED NESTED JSON) ---
 @st.cache_data(ttl=3600)
 def fetch_jkt48_api(url):
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -80,30 +82,26 @@ def fetch_jkt48_api(url):
         response.raise_for_status()
         data = response.json()
         
-        items = []
-        if isinstance(data, dict):
-            for key, value in data.items():
-                if isinstance(value, list) and len(value) > 0:
-                    items = value; break
-        elif isinstance(data, list): items = data
+        records = []
+        # Bongkar struktur JSON khusus M&G/2-Shot (Sesi -> Member)
+        for sesi in data.get('data', []):
+            sesi_nama = sesi.get('label', 'TBA')
+            members = sesi.get('session_members', [])
             
-        if not items: return pd.DataFrame()
-        df = pd.DataFrame(items)
-        
-        mapping = {}
-        cols = df.columns.tolist()
-        for c in ['name', 'member_name', 'memberName', 'member']:
-            if c in cols: mapping[c] = 'member'; break
-        for c in ['session', 'session_name', 'sessionName', 'bonus_session']:
-            if c in cols: mapping[c] = 'session'; break
-        for c in ['lane', 'lane_name', 'laneName', 'bonus_lane']:
-            if c in cols: mapping[c] = 'lane'; break
-
-        df = df.rename(columns=mapping)
-        for col in ['member', 'session', 'lane']:
-            if col not in df.columns: df[col] = "TBA"
-        return df[['member', 'session', 'lane']].drop_duplicates()
-    except:
+            for m in members:
+                member_nama = m.get('member_name', 'TBA')
+                jalur_nama = m.get('label', 'TBA')
+                records.append({
+                    'sesi': sesi_nama,
+                    'nama_member': member_nama,
+                    'jalur': jalur_nama
+                })
+                
+        if not records:
+            return pd.DataFrame()
+            
+        return pd.DataFrame(records).drop_duplicates()
+    except Exception as e:
         return pd.DataFrame()
 
 API_URLS = {
@@ -118,15 +116,15 @@ def form_input_srs():
     tipe_tiket = st.radio("Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True)
     df_api = fetch_jkt48_api(API_URLS[tipe_tiket])
     
-    if not df_api.empty and df_api['member'].iloc[0] != "TBA":
-        list_member = sorted(df_api['member'].unique().tolist())
+    if not df_api.empty:
+        list_member = sorted(df_api['nama_member'].unique().tolist())
         pilihan_member = st.selectbox("Pilih Member:", list_member)
         
-        df_member = df_api[df_api['member'] == pilihan_member]
-        pilihan_sesi = st.selectbox("Pilih Sesi:", sorted(df_member['session'].unique().tolist()))
+        df_member = df_api[df_api['nama_member'] == pilihan_member]
+        pilihan_sesi = st.selectbox("Pilih Sesi:", sorted(df_member['sesi'].unique().tolist()))
         
-        df_sesi = df_member[df_member['session'] == pilihan_sesi]
-        pilihan_jalur = st.selectbox("Pilih Jalur / Bilik:", sorted(df_sesi['lane'].unique().tolist()))
+        df_sesi = df_member[df_member['sesi'] == pilihan_sesi]
+        pilihan_jalur = st.selectbox("Pilih Jalur / Bilik:", sorted(df_sesi['jalur'].unique().tolist()))
         
         if st.button("Simpan Jadwal", type="primary", use_container_width=True):
             if nama_user and db_connected:
@@ -161,46 +159,63 @@ with col_btn:
 
 st.divider()
 
-# --- 7. RENDER GRID (LDP DASHBOARD STYLE) ---
+# --- 7. RENDER GRID (MASTER TIMETABLE + DB) ---
 def render_grid_section(tipe):
-    if not db_connected:
-        st.error("Database terputus.")
-        return
-        
-    res = supabase.table("srs_schedule").select("*").eq("type", tipe).execute()
-    if not res.data:
-        st.info(f"Belum ada data anak SRS yang input untuk {tipe}.")
+    # 1. Ambil data MASTER dari API
+    df_master = fetch_jkt48_api(API_URLS[tipe])
+    
+    # 2. Ambil data USER dari Supabase
+    df_user = pd.DataFrame()
+    if db_connected:
+        res = supabase.table("srs_schedule").select("*").eq("tipe_tiket", tipe).execute()
+        if res.data:
+            df_user = pd.DataFrame(res.data)
+
+    # 3. GABUNGKAN DATA
+    if not df_master.empty:
+        if not df_user.empty:
+            grouped_user = df_user.groupby(['sesi', 'nama_member', 'jalur'])['nama_user'].apply(list).reset_index()
+            df_final = pd.merge(df_master, grouped_user, on=['sesi', 'nama_member', 'jalur'], how='left')
+        else:
+            df_final = df_master.copy()
+            df_final['nama_user'] = None # Belum ada yang daftar
+    else:
+        st.error("API JKT48 sedang down. Tidak bisa memuat Master Timetable.")
         return
 
-    df = pd.DataFrame(res.data)
-    
-    # Filter Pencarian (Opsional agar makin mirip dashboard asli)
+    # Pastikan data yang kosong menjadi list kosong []
+    df_final['nama_user'] = df_final['nama_user'].apply(lambda x: x if isinstance(x, list) else [])
+
+    # Filter Pencarian
     search_query = st.text_input(f"🔍 Cari Sesi / Member / Anak SRS di {tipe}...", key=f"search_{tipe}")
     if search_query:
-        mask = df.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)
-        df = df[mask]
+        mask = df_final.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)
+        df_final = df_final[mask]
 
-    # Mengelompokkan data berdasarkan Sesi
-    sesi_list = sorted(df['sesi'].unique().tolist())
+    # Render per Sesi
+    sesi_list = sorted(df_final['sesi'].unique().tolist())
     
     for sesi in sesi_list:
         st.markdown(f"#### {sesi}")
-        df_sesi = df[df['sesi'] == sesi]
-        
-        # Mengelompokkan berdasarkan Member & Jalur di dalam Sesi tersebut
-        grouped = df_sesi.groupby(['nama_member', 'jalur'])['nama_user'].apply(list).reset_index()
+        df_sesi = df_final[df_final['sesi'] == sesi]
         
         html = '<div class="cards-grid">'
-        for _, row in grouped.iterrows():
+        for _, row in df_sesi.iterrows():
             member = row['nama_member']
             jalur = row['jalur']
             users_list = row['nama_user']
             count = len(users_list)
-            users_str = ", ".join(users_list)
             
-            # HTML Card Injection
+            # Styling jika ada orang vs kosong
+            if count > 0:
+                card_class = "active"
+                users_str = ", ".join(users_list)
+            else:
+                card_class = "empty"
+                users_str = "Belum ada anak SRS"
+                
             html += f"""
-            <div class="srs-card">
+            <div class="srs-card {card_class}">
                 <div class="c-jalur">{jalur}</div>
                 <div class="c-member">{member}</div>
                 <div class="c-users">

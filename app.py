@@ -11,7 +11,7 @@ st.set_page_config(page_title="SRS - LOVE DREAM PASSION", page_icon="🎫", layo
 if "is_inputting" not in st.session_state:
     st.session_state.is_inputting = False
 
-# Fungsi helper untuk mengubah state
+# Fungsi untuk mengubah state
 def set_inputting(status):
     st.session_state.is_inputting = status
 
@@ -69,8 +69,7 @@ def fetch_jkt48_api(url):
 API_URLS = {"2-Shot": "https://jkt48.com/api/v1/exclusives/EX579E/bonus?lang=id", "Meet & Greet": "https://jkt48.com/api/v1/exclusives/EXE588/bonus?lang=id"}
 
 # --- 5. FORM INPUT MODAL ---
-# on_close memastikan jika di-silang, autorefresh nyala lagi
-@st.dialog("📝 Input Jadwal SRS", on_close=lambda: set_inputting(status=False))
+@st.dialog("📝 Input Jadwal SRS")
 def form_input_srs():
     st.write("Auto-refresh dijeda...")
     nama_user = st.text_input("Nama Kamu (Panggilan SRS)")
@@ -83,28 +82,39 @@ def form_input_srs():
         p_sesi = st.selectbox("Pilih Sesi:", sorted(df_m['sesi'].unique().tolist()))
         p_jalur = st.selectbox("Pilih Jalur:", sorted(df_m[df_m['sesi'] == p_sesi]['jalur'].unique().tolist()))
         
-        if st.button("Simpan Jadwal", type="primary", use_container_width=True):
-            if nama_user and db_connected:
-                supabase.table("srs_schedule").insert({"name": nama_user, "type": tipe_tiket, "member": p_member, "sesi": p_sesi, "jalur": p_jalur}).execute()
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Simpan Jadwal", type="primary", use_container_width=True):
+                if nama_user and db_connected:
+                    supabase.table("srs_schedule").insert({"name": nama_user, "type": tipe_tiket, "member": p_member, "sesi": p_sesi, "jalur": p_jalur}).execute()
+                    set_inputting(False)
+                    st.rerun()
+        with c2:
+            if st.button("Batal / Tutup", use_container_width=True):
                 set_inputting(False)
                 st.rerun()
-    
-    if st.button("Batal / Tutup", use_container_width=True):
-        set_inputting(False)
-        st.rerun()
+    else:
+        if st.button("Tutup"):
+            set_inputting(False)
+            st.rerun()
 
 # --- 6. UI UTAMA ---
 col_title, col_btn = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.title("SUMBER REZEKI SQUAD")
     st.subheader("Meet & Greet Festival: LOVE DREAM PASSION")
+    
+    # Indikator Status Refresh
     if not st.session_state.is_inputting:
         st.markdown('<div class="live-badge"><span class="live-dot"></span> LIVE UPDATE ON (5s)</div>', unsafe_allow_html=True)
     else:
         st.markdown('<div class="live-badge" style="color:#FBBF24; background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.2);"><span class="live-dot" style="background:#FBBF24;"></span> PAUSED FOR INPUT</div>', unsafe_allow_html=True)
+        # Trik: Jika modal tertutup tapi state masih inputting, munculkan tombol reset
+        if st.button("🔄 Resume Refresh Manual"):
+            set_inputting(False)
+            st.rerun()
 
 with col_btn:
-    # Menggunakan on_click agar state berubah SEBELUM dialog muncul
     if st.button("➕ INPUT JADWALMU", type="primary", use_container_width=True, on_click=set_inputting, args=(True,)):
         form_input_srs()
 
@@ -127,7 +137,7 @@ def render_grid_section(tipe):
             df_final = df_master.copy()
             df_final['nama_user'] = None
     else:
-        st.error("API Down.")
+        st.error("API JKT48 sedang down.")
         return
 
     df_final['nama_user'] = df_final['nama_user'].apply(lambda x: x if isinstance(x, list) else [])

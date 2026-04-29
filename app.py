@@ -134,7 +134,7 @@ def display_full_timetable(tipe):
     
     # 2. Ambil Data User dari Supabase
     if db_connected:
-        res = supabase.table("srs_schedule").select("*").eq("tipe_tiket", tipe).execute()
+        res = supabase.table("srs_schedule").select("*").eq("type", tipe).execute()
         df_user = pd.DataFrame(res.data) if res.data else pd.DataFrame()
         
         if not df_user.empty:

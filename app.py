@@ -73,7 +73,7 @@ try:
 except Exception as e:
     db_connected = False
 
-# --- 4. FUNGSI AMBIL DATA API JKT48 (FIXED NESTED JSON) ---
+# --- 4. FUNGSI AMBIL DATA API JKT48 ---
 @st.cache_data(ttl=3600)
 def fetch_jkt48_api(url):
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -83,7 +83,6 @@ def fetch_jkt48_api(url):
         data = response.json()
         
         records = []
-        # Bongkar struktur JSON khusus M&G/2-Shot (Sesi -> Member)
         for sesi in data.get('data', []):
             sesi_nama = sesi.get('label', 'TBA')
             members = sesi.get('session_members', [])
@@ -146,53 +145,45 @@ def form_input_srs():
             }).execute()
             st.rerun()
 
-# --- 6. UI UTAMA ---
-st.image("banner.jpg", width="stretch")
-col_title, col_btn = st.columns([3, 1])
+# --- 6. UI UTAMA (HEADER SIMPEL) ---
+col_title, col_btn = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.title("SUMBER REZEKI SQUAD")
-    st.caption("Koordinasi Titik Kumpul - 23 Mei")
+    st.subheader("Personal Meet and Greet Festival: LOVE DREAM PASSION")
 with col_btn:
-    st.write("")
     if st.button("➕ INPUT JADWALMU", type="primary", use_container_width=True):
         form_input_srs()
 
 st.divider()
 
-# --- 7. RENDER GRID (MASTER TIMETABLE + DB) ---
+# --- 7. RENDER GRID ---
 def render_grid_section(tipe):
-    # 1. Ambil data MASTER dari API
     df_master = fetch_jkt48_api(API_URLS[tipe])
     
-    # 2. Ambil data USER dari Supabase
     df_user = pd.DataFrame()
     if db_connected:
         res = supabase.table("srs_schedule").select("*").eq("type", tipe).execute()
         if res.data:
             df_user = pd.DataFrame(res.data)
 
-    # 3. GABUNGKAN DATA
     if not df_master.empty:
         if not df_user.empty:
             grouped_user = df_user.groupby(['sesi', 'nama_member', 'jalur'])['nama_user'].apply(list).reset_index()
             df_final = pd.merge(df_master, grouped_user, on=['sesi', 'nama_member', 'jalur'], how='left')
         else:
             df_final = df_master.copy()
-            df_final['nama_user'] = None # Belum ada yang daftar
+            df_final['nama_user'] = None
     else:
         st.error("API JKT48 sedang down. Tidak bisa memuat Master Timetable.")
         return
 
-    # Pastikan data yang kosong menjadi list kosong []
     df_final['nama_user'] = df_final['nama_user'].apply(lambda x: x if isinstance(x, list) else [])
 
-    # Filter Pencarian
     search_query = st.text_input(f"🔍 Cari Sesi / Member / Anak SRS di {tipe}...", key=f"search_{tipe}")
     if search_query:
         mask = df_final.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)
         df_final = df_final[mask]
 
-    # Render per Sesi
     sesi_list = sorted(df_final['sesi'].unique().tolist())
     
     for sesi in sesi_list:
@@ -206,24 +197,20 @@ def render_grid_section(tipe):
             users_list = row['nama_user']
             count = len(users_list)
             
-            # Styling jika ada orang vs kosong
             if count > 0:
                 card_class = "active"
                 users_str = ", ".join(users_list)
             else:
                 card_class = "empty"
                 users_str = "Belum ada anak SRS"
-                
-            html += f"""
-            <div class="srs-card {card_class}">
-                <div class="c-jalur">{jalur}</div>
-                <div class="c-member">{member}</div>
-                <div class="c-users">
-                    <span class="user-count">👥 {count} ORANG</span>
-                    {users_str}
-                </div>
-            </div>
-            """
+            
+            # BUG FIX: HTML tanpa indentasi agar terender sempurna (bukan sebagai code block)
+            html += f'<div class="srs-card {card_class}">'
+            html += f'<div class="c-jalur">{jalur}</div>'
+            html += f'<div class="c-member">{member}</div>'
+            html += f'<div class="c-users"><span class="user-count">👥 {count} ORANG</span>{users_str}</div>'
+            html += '</div>'
+            
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
 

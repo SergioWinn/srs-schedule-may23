@@ -5,14 +5,13 @@ from supabase import create_client
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. KONFIGURASI HALAMAN ---
+# Mengubah judul tab browser sesuai permintaan
 st.set_page_config(page_title="SRS - LOVE DREAM PASSION", page_icon="🎫", layout="wide")
 
-# --- 2. LOGIKA PENDAKIAN REFRESH (PENTING!) ---
-# Inisialisasi status 'is_inputting' agar tidak error saat pertama buka
+# --- 2. LOGIKA PENDAKIAN REFRESH ---
 if "is_inputting" not in st.session_state:
     st.session_state.is_inputting = False
 
-# Hanya jalankan auto-refresh JIKA user sedang TIDAK menginput data
 if not st.session_state.is_inputting:
     st_autorefresh(interval=5000, limit=None, key="srs_refresh")
 
@@ -27,12 +26,13 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 .srs-card.empty { border-bottom: 5px solid #475569; opacity: 0.8; }
 .c-jalur { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
 .c-member { font-weight: 800; font-size: 18px; color: #f8fafc; margin-bottom: 15px; }
-.c-users { font-size: 13px; font-weight: 600; padding: 10px; border-radius: 12px; margin-top: auto; }
+.c-users { font-size: 13px; font-weight: 600; padding: 10px; border-radius: 12px; margin-top: auto; line-height: 1.4; }
 .srs-card.active .c-users { background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); }
 .srs-card.empty .c-users { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
 .live-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; color: #10B981; background: rgba(16,185,129,0.1); padding: 5px 15px; border-radius: 30px; border: 1px solid rgba(16,185,129,0.2); }
 .live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
+.user-count { display: block; font-size: 11px; margin-bottom: 4px; text-transform: uppercase; font-weight: 800;}
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -68,7 +68,7 @@ def fetch_jkt48_api(url):
 
 API_URLS = {"2-Shot": "https://jkt48.com/api/v1/exclusives/EX579E/bonus?lang=id", "Meet & Greet": "https://jkt48.com/api/v1/exclusives/EXE588/bonus?lang=id"}
 
-# --- 6. FORM INPUT MODAL (DENGAN LOGIKA STOP REFRESH) ---
+# --- 6. FORM INPUT MODAL ---
 @st.dialog("📝 Input Jadwal SRS")
 def form_input_srs():
     st.write("Timer auto-refresh dimatikan sementara agar input tidak terganggu.")
@@ -89,12 +89,12 @@ def form_input_srs():
             if st.button("Simpan Jadwal", type="primary", use_container_width=True):
                 if nama_user and db_connected:
                     supabase.table("srs_schedule").insert({"name": nama_user, "type": tipe_tiket, "member": pilihan_member, "sesi": pilihan_sesi, "jalur": pilihan_jalur}).execute()
-                    st.session_state.is_inputting = False # Aktifkan refresh lagi
+                    st.session_state.is_inputting = False 
                     st.success("Tersimpan!")
                     st.rerun()
         with c2:
             if st.button("Batal / Tutup", use_container_width=True):
-                st.session_state.is_inputting = False # Aktifkan refresh lagi
+                st.session_state.is_inputting = False 
                 st.rerun()
     else:
         if st.button("Batal"):
@@ -113,7 +113,7 @@ with col_title:
 
 with col_btn:
     if st.button("➕ INPUT JADWALMU", type="primary", use_container_width=True):
-        st.session_state.is_inputting = True # Matikan refresh
+        st.session_state.is_inputting = True 
         form_input_srs()
 
 st.divider()
@@ -152,7 +152,10 @@ def render_grid_section(tipe):
             member, jalur, users_list = row['nama_member'], row['jalur'], row['nama_user']
             count = len(users_list)
             card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")
-            html += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><span class="user-count">👥 {count} ORANG</span>{users_str}</div></div>'
+            
+            # BUG FIX: Menambahkan <br/> agar spasi antara jumlah orang dan nama menjadi rapi
+            html += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><span class="user-count">👥 {count} ORANG</span><br/>{users_str}</div></div>'
+            
         st.markdown(html + '</div>', unsafe_allow_html=True)
 
 tab1, tab2 = st.tabs(["📸 2-Shot", "🤝 Meet & Greet"])

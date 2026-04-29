@@ -2,11 +2,16 @@ import streamlit as st
 import pandas as pd
 import requests
 from supabase import create_client
+from streamlit_autorefresh import st_autorefresh
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="SRS M&G Coordinator", page_icon="🎫", layout="wide")
 
-# --- 2. PREMIUM UI STYLING (LDP STYLE) ---
+# --- 2. AUTO-REFRESH (Setiap 10 Detik) ---
+# key="srs_refresh" agar Streamlit tahu ini timer utama
+count = st_autorefresh(interval=10000, limit=None, key="srs_refresh")
+
+# --- 3. PREMIUM UI STYLING (LDP STYLE) ---
 css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -50,6 +55,11 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 
 .user-count { display: block; font-size: 11px; margin-bottom: 3px; text-transform: uppercase; font-weight: 800;}
 
+/* Live Badge Indicator */
+.live-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; color: #10B981; background: rgba(16,185,129,0.1); padding: 5px 15px; border-radius: 30px; border: 1px solid rgba(16,185,129,0.2); margin-top: 10px;}
+.live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
+
 @media (max-width: 500px) { 
     .cards-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } 
     .srs-card { padding: 15px 10px; }
@@ -60,7 +70,7 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 """
 st.markdown(css.replace('\n', '').replace('\r', ''), unsafe_allow_html=True)
 
-# --- 3. KONEKSI DATABASE (SUPABASE) ---
+# --- 4. KONEKSI DATABASE (SUPABASE) ---
 @st.cache_resource
 def init_connection():
     url = st.secrets["SUPABASE_URL"]
@@ -73,7 +83,7 @@ try:
 except Exception as e:
     db_connected = False
 
-# --- 4. FUNGSI AMBIL DATA API JKT48 ---
+# --- 5. FUNGSI AMBIL DATA API JKT48 ---
 @st.cache_data(ttl=3600)
 def fetch_jkt48_api(url):
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -108,7 +118,7 @@ API_URLS = {
     "Meet & Greet": "https://jkt48.com/api/v1/exclusives/EXE588/bonus?lang=id"
 }
 
-# --- 5. FORM INPUT MODAL ---
+# --- 6. FORM INPUT MODAL ---
 @st.dialog("📝 Input Jadwal SRS")
 def form_input_srs():
     nama_user = st.text_input("Nama Kamu (Panggilan SRS)")
@@ -127,7 +137,6 @@ def form_input_srs():
         
         if st.button("Simpan Jadwal", type="primary", use_container_width=True):
             if nama_user and db_connected:
-                # PERBAIKAN: Menyesuaikan nama kolom dengan struktur Supabase
                 supabase.table("srs_schedule").insert({
                     "name": nama_user, 
                     "type": tipe_tiket,
@@ -143,7 +152,6 @@ def form_input_srs():
         s_manual = st.text_input("Sesi (Manual)")
         j_manual = st.text_input("Jalur (Manual)")
         if st.button("Simpan Manual") and db_connected:
-            # PERBAIKAN: Menyesuaikan nama kolom untuk fallback manual
             supabase.table("srs_schedule").insert({
                 "name": nama_user, 
                 "type": tipe_tiket,
@@ -153,28 +161,28 @@ def form_input_srs():
             }).execute()
             st.rerun()
 
-# --- 6. UI UTAMA (HEADER SIMPEL) ---
+# --- 7. UI UTAMA (HEADER SIMPEL) ---
 col_title, col_btn = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.title("SUMBER REZEKI SQUAD")
     st.subheader("Personal Meet and Greet Festival: LOVE DREAM PASSION")
+    st.markdown('<div class="live-badge"><span class="live-dot"></span> LIVE UPDATE ON</div>', unsafe_allow_html=True)
 with col_btn:
     if st.button("➕ INPUT JADWALMU", type="primary", use_container_width=True):
         form_input_srs()
 
 st.divider()
 
-# --- 7. RENDER GRID ---
+# --- 8. RENDER GRID ---
 def render_grid_section(tipe):
     df_master = fetch_jkt48_api(API_URLS[tipe])
     
     df_user = pd.DataFrame()
     if db_connected:
-        # PERBAIKAN: Filter berdasarkan kolom 'type' (bukan tipe_tiket)
+        # PERBAIKAN: Supaya data yang ditarik selalu fresh tiap kali refresh (bukan dari cache browser)
         res = supabase.table("srs_schedule").select("*").eq("type", tipe).execute()
         if res.data:
             df_user = pd.DataFrame(res.data)
-            # PERBAIKAN: Ubah nama kolom hasil tarikan DB agar cocok dengan logika merge di Python
             df_user = df_user.rename(columns={"name": "nama_user", "member": "nama_member"})
 
     if not df_master.empty:
@@ -224,7 +232,7 @@ def render_grid_section(tipe):
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
 
-# --- 8. TABS ---
+# --- 9. TABS ---
 tab1, tab2 = st.tabs(["📸 2-Shot", "🤝 Meet & Greet"])
 with tab1:
     render_grid_section("2-Shot")

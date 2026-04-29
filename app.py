@@ -127,9 +127,13 @@ def form_input_srs():
         
         if st.button("Simpan Jadwal", type="primary", use_container_width=True):
             if nama_user and db_connected:
+                # PERBAIKAN: Menyesuaikan nama kolom dengan struktur Supabase
                 supabase.table("srs_schedule").insert({
-                    "nama_user": nama_user, "tipe_tiket": tipe_tiket,
-                    "nama_member": pilihan_member, "sesi": pilihan_sesi, "jalur": pilihan_jalur
+                    "name": nama_user, 
+                    "type": tipe_tiket,
+                    "member": pilihan_member, 
+                    "sesi": pilihan_sesi, 
+                    "jalur": pilihan_jalur
                 }).execute()
                 st.success("Tersimpan!")
                 st.rerun()
@@ -139,9 +143,13 @@ def form_input_srs():
         s_manual = st.text_input("Sesi (Manual)")
         j_manual = st.text_input("Jalur (Manual)")
         if st.button("Simpan Manual") and db_connected:
+            # PERBAIKAN: Menyesuaikan nama kolom untuk fallback manual
             supabase.table("srs_schedule").insert({
-                "nama_user": nama_user, "tipe_tiket": tipe_tiket,
-                "nama_member": m_manual, "sesi": s_manual, "jalur": j_manual
+                "name": nama_user, 
+                "type": tipe_tiket,
+                "member": m_manual, 
+                "sesi": s_manual, 
+                "jalur": j_manual
             }).execute()
             st.rerun()
 
@@ -162,9 +170,12 @@ def render_grid_section(tipe):
     
     df_user = pd.DataFrame()
     if db_connected:
+        # PERBAIKAN: Filter berdasarkan kolom 'type' (bukan tipe_tiket)
         res = supabase.table("srs_schedule").select("*").eq("type", tipe).execute()
         if res.data:
             df_user = pd.DataFrame(res.data)
+            # PERBAIKAN: Ubah nama kolom hasil tarikan DB agar cocok dengan logika merge di Python
+            df_user = df_user.rename(columns={"name": "nama_user", "member": "nama_member"})
 
     if not df_master.empty:
         if not df_user.empty:
@@ -204,7 +215,6 @@ def render_grid_section(tipe):
                 card_class = "empty"
                 users_str = "Belum ada anak SRS"
             
-            # BUG FIX: HTML tanpa indentasi agar terender sempurna (bukan sebagai code block)
             html += f'<div class="srs-card {card_class}">'
             html += f'<div class="c-jalur">{jalur}</div>'
             html += f'<div class="c-member">{member}</div>'

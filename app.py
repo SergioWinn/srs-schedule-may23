@@ -116,7 +116,7 @@ tab1, tab2 = st.tabs(["📸 Rekap 2-Shot", "🤝 Rekap Meet & Greet"])
 
 def display_rekap(tipe):
     if db_connected:
-        res = supabase.table("srs_schedule").select("*").eq("tipe_tiket", tipe).execute()
+        res = supabase.table("srs_schedule").select("*").eq("type", tipe).execute()
         if res.data:
             df = pd.DataFrame(res.data)
             # Kelompokkan anak SRS yang jadwalnya sama

@@ -3,3 +3,4 @@ requests
 pandas
 supabase
 streamlit-autorefresh
+st-copy-to-clipboard

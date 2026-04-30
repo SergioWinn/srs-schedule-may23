@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from supabase import create_client
+from st_copy_to_clipboard import st_copy_to_clipboard  # <-- IMPORT BARU
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="SRS - LOVE DREAM PASSION", page_icon="🎫", layout="wide")
@@ -24,6 +25,8 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 .live-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; color: #10B981; background: rgba(16,185,129,0.1); padding: 5px 15px; border-radius: 30px; border: 1px solid rgba(16,185,129,0.2); }
 .live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
+/* Styling tambahan agar tombol copy terlihat lebih menyatu */
+.st-copy-to-clipboard-btn { margin-top: -5px; }
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -92,10 +95,8 @@ def form_input_srs():
         else:
             st.warning("API JKT48 sedang down.")
 
-    # --- TAB CSV (UPGRADED: BISA MULTIPLE FILE) ---
     with tab_csv:
         st.info("Bisa pilih/blok banyak file CSV sekaligus!")
-        # FITUR BARU: accept_multiple_files=True
         uploaded_files = st.file_uploader("Pilih file CSV", type=["csv"], accept_multiple_files=True)
         
         if st.button("Simpan dari CSV", type="primary", use_container_width=True):
@@ -104,11 +105,8 @@ def form_input_srs():
             elif uploaded_files and db_connected:
                 try:
                     new_records = []
-                    
-                    # Looping untuk membaca setiap file CSV yang diupload
                     for uploaded_file in uploaded_files:
                         df_upload = pd.read_csv(uploaded_file)
-                        
                         for _, row in df_upload.iterrows():
                             if all(col in df_upload.columns for col in ['Member', 'Sesi', 'Jalur', 'Tipe Tiket']):
                                 t_raw = str(row['Tipe Tiket']).strip()
@@ -195,7 +193,6 @@ def render_grid_section(tipe):
     for sesi in sorted(df_final['sesi'].unique().tolist()):
         df_sesi = df_final[df_final['sesi'] == sesi]
         
-        # --- PERSIAPAN TEKS & HTML SEKALIGUS ---
         rekap_teks = f"🎫 [SRS] REKAP {tipe.upper()} - {sesi.upper()}\n\n"
         ada_isi = False
         html_cards = '<div class="cards-grid">'
@@ -203,11 +200,9 @@ def render_grid_section(tipe):
         for _, row in df_sesi.iterrows():
             member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
             
-            # Anti-Duplikat & Urut Abjad
             users_list = sorted(list(dict.fromkeys(users_list_raw)), key=lambda x: str(x).lower()) if users_list_raw else []
             count = len(users_list)
             
-            # Tambah ke teks WA jika ada orangnya
             if count > 0:
                 ada_isi = True
                 rekap_teks += f"📍 {jalur} ({member}): {', '.join(users_list)}\n"
@@ -217,17 +212,21 @@ def render_grid_section(tipe):
             
         html_cards += '</div>'
 
-        # --- RENDER HEADER & TOMBOL SALIN SEJAJAR ---
-        col_head, col_copy = st.columns([5, 2]) # Membagi layar: 5 bagian untuk Judul, 2 bagian untuk Tombol
+        # --- TAMPILAN JUDUL & TOMBOL COPY (TANPA PREVIEW) ---
+        col_head, col_copy = st.columns([5, 2])
         with col_head:
             st.markdown(f"#### {sesi}")
         with col_copy:
             if ada_isi:
-                # Expander minimalis di sebelah kanan
-                with st.expander("📋 Salin Teks"):
-                    st.code(rekap_teks, language="text")
+                # Tombol instan langsung eksekusi tanpa dropdown
+                st_copy_to_clipboard(
+                    text=rekap_teks,
+                    before_copy_label=f"📋 Salin {sesi}",
+                    after_copy_label="✅ Tersalin!",
+                    key=f"copy_{tipe}_{sesi}"
+                )
 
-        # --- RENDER KARTU GRID DI BAWAHNYA ---
+        # Render kotak-kotak member di bawahnya
         st.markdown(html_cards, unsafe_allow_html=True)
 
 # Panggil fungsi fragment

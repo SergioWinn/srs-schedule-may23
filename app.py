@@ -198,58 +198,41 @@ def render_grid_section(tipe):
 
     df_final['nama_user'] = df_final['nama_user'].apply(lambda x: x if isinstance(x, list) else [])
     
-    # --- 1. MENAMBAHKAN OPSI "SEMUA" SEBAGAI SATU TAG SAKTI ---
-    unique_sesi = ["✨ SEMUA SESI"] + sorted(df_final['sesi'].unique().tolist())
-    unique_member = ["✨ SEMUA MEMBER"] + sorted(df_final['nama_member'].unique().tolist())
-    
+    # --- DATA UNTUK FILTER ---
+    unique_sesi = sorted(df_final['sesi'].unique().tolist())
+    unique_member = sorted(df_final['nama_member'].unique().tolist())
     all_users_list = []
     for users in df_final['nama_user']:
         all_users_list.extend(users)
-    unique_users = ["✨ SEMUA ANAK SRS"] + sorted(list(set(all_users_list)), key=lambda x: str(x).lower())
+    unique_users = sorted(list(set(all_users_list)), key=lambda x: str(x).lower())
 
-    # --- 2. UI MENU FILTER ---
+    # --- UI MENU FILTER (VERSI STABIL) ---
     st.markdown(f"<h5>🎛️ Filter & Salin Rekap {tipe}</h5>", unsafe_allow_html=True)
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 2, 2, 1], vertical_alignment="bottom")
     
     with f_col1:
-        f_sesi = st.multiselect("Berdasarkan Sesi", unique_sesi, default=["✨ SEMUA SESI"], key=f"f_sesi_{tipe}")
+        f_sesi = st.multiselect("Berdasarkan Sesi", unique_sesi, placeholder="Semua Sesi", key=f"f_sesi_{tipe}")
     with f_col2:
-        f_member = st.multiselect("Berdasarkan Member", unique_member, default=["✨ SEMUA MEMBER"], key=f"f_member_{tipe}")
+        f_member = st.multiselect("Berdasarkan Member", unique_member, placeholder="Semua Member", key=f"f_member_{tipe}")
     with f_col3:
-        f_user = st.multiselect("Berdasarkan Anak SRS", unique_users, default=["✨ SEMUA ANAK SRS"], key=f"f_user_{tipe}")
+        f_user = st.multiselect("Berdasarkan Anak SRS", unique_users, placeholder="Semua Anak SRS", key=f"f_user_{tipe}")
         
-    # --- 3. PROSES FILTER DATA (LOGIKA: KOSONG = BLANK) ---
+    # --- LOGIKA FILTER (KOSONG = TAMPIL SEMUA) ---
     df_filtered = df_final.copy()
-    
-    # Filter Sesi
-    if not f_sesi: 
-        df_filtered = pd.DataFrame(columns=df_final.columns) # Bikin Kosong!
-    elif "✨ SEMUA SESI" not in f_sesi:
+    if f_sesi:
         df_filtered = df_filtered[df_filtered['sesi'].isin(f_sesi)]
-
-    # Filter Member
-    if not f_member:
-        df_filtered = pd.DataFrame(columns=df_final.columns) # Bikin Kosong!
-    elif "✨ SEMUA MEMBER" not in f_member:
+    if f_member:
         df_filtered = df_filtered[df_filtered['nama_member'].isin(f_member)]
+    if f_user:
+        df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in users for u in f_user))]
 
-    # Filter Anak SRS
-    if not f_user:
-        df_filtered = pd.DataFrame(columns=df_final.columns) # Bikin Kosong!
-    elif "✨ SEMUA ANAK SRS" not in f_user:
-        df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in f_user for u in users))]
-
-    # --- 4. MEMBUAT TEKS MASTER COPY ---
-    judul_user = [u for u in f_user if u != "✨ SEMUA ANAK SRS"]
-    judul_member = [m for m in f_member if m != "✨ SEMUA MEMBER"]
-    judul_sesi = [s for s in f_sesi if s != "✨ SEMUA SESI"]
-
-    if judul_user:
-        judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(judul_user).upper()}"
-    elif judul_member:
-        judul_rekap = f"🎫 [SRS] REKAP MEMBER {tipe.upper()} - {', '.join(judul_member).upper()}"
-    elif judul_sesi:
-        judul_rekap = f"🎫 [SRS] REKAP {tipe.upper()} - {', '.join(judul_sesi).upper()}"
+    # --- MEMBUAT TEKS REKAP ---
+    if f_user:
+        judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(f_user).upper()}"
+    elif f_member:
+        judul_rekap = f"🎫 [SRS] REKAP MEMBER {tipe.upper()} - {', '.join(f_member).upper()}"
+    elif f_sesi:
+        judul_rekap = f"🎫 [SRS] REKAP {tipe.upper()} - {', '.join(f_sesi).upper()}"
     else:
         judul_rekap = f"🎫 [SRS] REKAP KESELURUHAN {tipe.upper()}"
 
@@ -259,12 +242,10 @@ def render_grid_section(tipe):
     for sesi in sorted(df_filtered['sesi'].unique().tolist()):
         df_s = df_filtered[df_filtered['sesi'] == sesi]
         sesi_text = ""
-        
         for _, row in df_s.iterrows():
             users_clean = sorted(list(dict.fromkeys(row['nama_user'])), key=lambda x: str(x).lower())
             if len(users_clean) > 0:
                 sesi_text += f"📍 {row['jalur']} ({row['nama_member']}): {', '.join(users_clean)}\n"
-        
         if sesi_text:
             master_teks += f"🔹 {sesi}\n{sesi_text}\n"
             ada_master_isi = True
@@ -273,7 +254,7 @@ def render_grid_section(tipe):
         if ada_master_isi:
             st_copy_to_clipboard(
                 text=master_teks,
-                before_copy_label="📋 Salin Rekap",
+                before_copy_label="📋 Salin",
                 after_copy_label="✅ Tersalin!",
                 key=f"master_copy_btn_{tipe}"
             )
@@ -282,26 +263,22 @@ def render_grid_section(tipe):
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # --- 5. RENDER KOTAK TIMETABLE ---
-    if df_filtered.empty:
-        # Jika filter kosong, munculkan alert santai dan jangan render apa-apa
-        st.info("💡 Tidak ada jadwal yang ditampilkan. Silakan pilih Sesi, Member, atau Anak SRS pada filter di atas.")
-    else:
-        for sesi in sorted(df_filtered['sesi'].unique().tolist()):
-            df_sesi = df_filtered[df_filtered['sesi'] == sesi]
-            st.markdown(f"<h4>{sesi}</h4>", unsafe_allow_html=True)
+    # --- RENDER KOTAK ---
+    for sesi in sorted(df_filtered['sesi'].unique().tolist()):
+        df_sesi = df_filtered[df_filtered['sesi'] == sesi]
+        st.markdown(f"<h4>{sesi}</h4>", unsafe_allow_html=True)
+        
+        html_cards = '<div class="cards-grid">'
+        for _, row in df_sesi.iterrows():
+            member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
+            users_list = sorted(list(dict.fromkeys(users_list_raw)), key=lambda x: str(x).lower()) if users_list_raw else []
+            count = len(users_list)
             
-            html_cards = '<div class="cards-grid">'
-            for _, row in df_sesi.iterrows():
-                member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
-                users_list = sorted(list(dict.fromkeys(users_list_raw)), key=lambda x: str(x).lower()) if users_list_raw else []
-                count = len(users_list)
-                
-                card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")
-                html_cards += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div></div>'
-                
-            html_cards += '</div>'
-            st.markdown(html_cards, unsafe_allow_html=True)
+            card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")
+            html_cards += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div></div>'
+            
+        html_cards += '</div>'
+        st.markdown(html_cards, unsafe_allow_html=True)
 
 # Panggil fungsi fragment
 render_realtime_dashboard()

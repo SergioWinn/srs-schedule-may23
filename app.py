@@ -54,31 +54,84 @@ def fetch_jkt48_api(url):
 
 API_URLS = {"2-Shot": "https://jkt48.com/api/v1/exclusives/EX579E/bonus?lang=id", "Meet & Greet": "https://jkt48.com/api/v1/exclusives/EXE588/bonus?lang=id"}
 
-# --- 4. FORM INPUT MODAL ---
+# --- 4. FORM INPUT MODAL (DENGAN FITUR CSV) ---
 @st.dialog("📝 Input Jadwal SRS")
 def form_input_srs():
-    nama_user = st.text_input("Nama Kamu (Panggilan SRS)")
-    tipe_tiket = st.radio("Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True)
-    df_api = fetch_jkt48_api(API_URLS[tipe_tiket])
+    nama_user = st.text_input("Nama Kamu (Panggilan SRS)", placeholder="Wajib diisi untuk kedua metode input")
     
-    if not df_api.empty:
-        p_member = st.selectbox("Pilih Member:", sorted(df_api['nama_member'].unique().tolist()))
-        df_m = df_api[df_api['nama_member'] == p_member]
-        p_sesi = st.selectbox("Pilih Sesi:", sorted(df_m['sesi'].unique().tolist()))
-        p_jalur = st.selectbox("Pilih Jalur:", sorted(df_m[df_m['sesi'] == p_sesi]['jalur'].unique().tolist()))
+    # Membuat 2 Tab untuk opsi input
+    tab_manual, tab_csv = st.tabs(["✍️ Input Manual", "📁 Upload CSV"])
+    
+    # --- TAB MANUAL ---
+    with tab_manual:
+        tipe_tiket = st.radio("Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True)
+        df_api = fetch_jkt48_api(API_URLS[tipe_tiket])
         
-        if st.button("Simpan Jadwal", type="primary", use_container_width=True):
-            if nama_user and db_connected:
-                supabase.table("srs_schedule").insert({
-                    "name": nama_user, 
-                    "type": tipe_tiket, 
-                    "member": p_member, 
-                    "sesi": p_sesi, 
-                    "jalur": p_jalur
-                }).execute()
-                st.rerun()
-    else:
-        st.warning("API JKT48 sedang down.")
+        if not df_api.empty:
+            p_member = st.selectbox("Pilih Member:", sorted(df_api['nama_member'].unique().tolist()))
+            df_m = df_api[df_api['nama_member'] == p_member]
+            p_sesi = st.selectbox("Pilih Sesi:", sorted(df_m['sesi'].unique().tolist()))
+            p_jalur = st.selectbox("Pilih Jalur:", sorted(df_m[df_m['sesi'] == p_sesi]['jalur'].unique().tolist()))
+            
+            if st.button("Simpan Jadwal Manual", type="primary", use_container_width=True):
+                if nama_user and db_connected:
+                    supabase.table("srs_schedule").insert({
+                        "name": nama_user, 
+                        "type": tipe_tiket, 
+                        "member": p_member, 
+                        "sesi": p_sesi, 
+                        "jalur": p_jalur
+                    }).execute()
+                    st.rerun()
+                elif not nama_user:
+                    st.warning("Harap isi Nama Kamu di kolom atas!")
+        else:
+            st.warning("API JKT48 sedang down.")
+
+    # --- TAB CSV ---
+    with tab_csv:
+        st.info("Upload file CSV jadwal yang didapat dari export tiket JKT48.")
+        uploaded_file = st.file_uploader("Pilih file CSV", type=["csv"])
+        
+        if st.button("Simpan dari CSV", type="primary", use_container_width=True):
+            if not nama_user:
+                st.warning("Harap isi Nama Kamu di kolom atas sebelum upload CSV!")
+            elif uploaded_file is not None and db_connected:
+                try:
+                    df_upload = pd.read_csv(uploaded_file)
+                    records_to_insert = []
+                    
+                    for _, row in df_upload.iterrows():
+                        # Cek apakah kolom-kolom yang dibutuhkan ada di dalam CSV
+                        if all(col in df_upload.columns for col in ['Member', 'Sesi', 'Jalur', 'Tipe Tiket']):
+                            
+                            # Normalisasi "2Shot" menjadi "2-Shot" agar cocok dengan API
+                            t_tiket_raw = str(row['Tipe Tiket']).strip()
+                            if "2shot" in t_tiket_raw.lower() or "2-shot" in t_tiket_raw.lower():
+                                tipe_tiket_final = "2-Shot"
+                            else:
+                                tipe_tiket_final = "Meet & Greet"
+                                
+                            records_to_insert.append({
+                                "name": nama_user,
+                                "type": tipe_tiket_final,
+                                "member": str(row['Member']).strip(),
+                                "sesi": str(row['Sesi']).strip(),
+                                "jalur": str(row['Jalur']).strip()
+                            })
+                    
+                    if records_to_insert:
+                        # Batch insert ke Supabase (mengirim banyak data sekaligus)
+                        supabase.table("srs_schedule").insert(records_to_insert).execute()
+                        st.success(f"Mantap! {len(records_to_insert)} tiket berhasil dimasukkan ke jadwalmu.")
+                        st.rerun()
+                    else:
+                        st.error("Gagal mendeteksi kolom yang sesuai. Pastikan format CSV benar.")
+                        
+                except Exception as e:
+                    st.error(f"Gagal memproses file CSV: {e}")
+            else:
+                st.warning("Pilih file CSV terlebih dahulu!")
 
 # --- 5. UI UTAMA ---
 col_title, col_btn = st.columns([3, 1], vertical_alignment="center")
@@ -133,7 +186,12 @@ def render_grid_section(tipe):
         df_sesi = df_final[df_final['sesi'] == sesi]
         html = '<div class="cards-grid">'
         for _, row in df_sesi.iterrows():
-            member, jalur, users_list = row['nama_member'], row['jalur'], row['nama_user']
+            member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
+            
+            # Anti-Duplikat nama (Jika user punya 2 tiket atau upload CSV yang sama 2x)
+            # dict.fromkeys() digunakan agar urutan namanya tetap berurutan dari waktu input pertama
+            users_list = list(dict.fromkeys(users_list_raw)) if users_list_raw else []
+            
             count = len(users_list)
             card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")
             html += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div></div>'

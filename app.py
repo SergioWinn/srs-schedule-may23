@@ -244,8 +244,8 @@ def render_grid_section(tipe):
     if f_user:
         df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in users for u in f_user))]
 
-    # --- MEMBUAT TEKS MASTER COPY BERDASARKAN FILTER (FIXED) ---
-    # Tentukan Judul WA agar Pintar dan Kontekstual
+    # --- LOGIKA MASTER COPY YANG SUDAH TOBAT (SINKRON DENGAN FILTER) ---
+    # 1. Tentukan judul berdasarkan apa yang dipilih user
     if f_user:
         judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(f_user).upper()}"
     elif f_member:
@@ -258,20 +258,24 @@ def render_grid_section(tipe):
     master_teks = f"{judul_rekap}\n\n"
     ada_master_isi = False
     
-    # KUNCI PERBAIKAN: Looping menggunakan df_filtered (data yang sudah disaring di layar)
-    for sesi in sorted(df_filtered['sesi'].unique().tolist()):
+    # 2. Looping HANYA dari data yang sudah difilter (df_filtered)
+    # Kita urutkan sesinya biar rapi dari Sesi 1, 2, dst.
+    sesi_tersaring = sorted(df_filtered['sesi'].unique().tolist())
+    
+    for sesi in sesi_tersaring:
         df_s = df_filtered[df_filtered['sesi'] == sesi]
         sesi_text = ""
         
         for _, row in df_s.iterrows():
-            # Hanya ambil user yang valid (bukan list kosong)
+            # Ambil list anak SRS di jalur tersebut
             users_clean = sorted(list(dict.fromkeys(row['nama_user'])), key=lambda x: str(x).lower())
             
-            # Jika sedang filter member, kita tetap ingin jalur itu muncul di teks WA
-            # Jika sedang filter Anak SRS, kita hanya ingin jalur yang ada nama anak tersebut
+            # KUNCI: Cek apakah ada isinya. Kalau lagi filter member tapi jalurnya kosong, 
+            # tetap skip biar teks WA-nya ringkas.
             if len(users_clean) > 0:
                 sesi_text += f"📍 {row['jalur']} ({row['nama_member']}): {', '.join(users_clean)}\n"
         
+        # Kalau sesi ini ada isinya, baru tambahkan ke teks utama
         if sesi_text:
             master_teks += f"🔹 {sesi}\n{sesi_text}\n"
             ada_master_isi = True

@@ -20,7 +20,7 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 .srs-card.active .c-users { background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); }
 .srs-card.empty .c-users { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
 .user-count { font-size: 11px; text-transform: uppercase; font-weight: 800; }
-.user-names { font-size: 13px; font-weight: 600; }
+.user-names { font-size: 13px; font-weight: 600; line-height: 1.4; }
 .live-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; color: #10B981; background: rgba(16,185,129,0.1); padding: 5px 15px; border-radius: 30px; border: 1px solid rgba(16,185,129,0.2); }
 .live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
@@ -54,35 +54,41 @@ def fetch_jkt48_api(url):
 
 API_URLS = {"2-Shot": "https://jkt48.com/api/v1/exclusives/EX579E/bonus?lang=id", "Meet & Greet": "https://jkt48.com/api/v1/exclusives/EXE588/bonus?lang=id"}
 
-# --- 4. FORM INPUT MODAL (DENGAN FITUR CSV) ---
+# --- 4. FORM INPUT MODAL (TANPA HAPUS, DENGAN PREVENTIF) ---
 @st.dialog("📝 Input Jadwal SRS")
 def form_input_srs():
-    nama_user = st.text_input("Nama Kamu (Panggilan SRS)", placeholder="Wajib diisi untuk kedua metode input")
+    nama_user = st.text_input("Nama Kamu (Panggilan SRS)", placeholder="Pastikan konsisten (contoh: Sergio)")
     
-    # Membuat 2 Tab untuk opsi input
     tab_manual, tab_csv = st.tabs(["✍️ Input Manual", "📁 Upload CSV"])
     
     # --- TAB MANUAL ---
     with tab_manual:
-        tipe_tiket = st.radio("Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True)
+        tipe_tiket = st.radio("Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True, key="manual_type")
         df_api = fetch_jkt48_api(API_URLS[tipe_tiket])
         
         if not df_api.empty:
-            p_member = st.selectbox("Pilih Member:", sorted(df_api['nama_member'].unique().tolist()))
+            p_member = st.selectbox("Pilih Member:", sorted(df_api['nama_member'].unique().tolist()), key="manual_member")
             df_m = df_api[df_api['nama_member'] == p_member]
-            p_sesi = st.selectbox("Pilih Sesi:", sorted(df_m['sesi'].unique().tolist()))
-            p_jalur = st.selectbox("Pilih Jalur:", sorted(df_m[df_m['sesi'] == p_sesi]['jalur'].unique().tolist()))
+            p_sesi = st.selectbox("Pilih Sesi:", sorted(df_m['sesi'].unique().tolist()), key="manual_sesi")
+            p_jalur = st.selectbox("Pilih Jalur:", sorted(df_m[df_m['sesi'] == p_sesi]['jalur'].unique().tolist()), key="manual_jalur")
             
             if st.button("Simpan Jadwal Manual", type="primary", use_container_width=True):
                 if nama_user and db_connected:
-                    supabase.table("srs_schedule").insert({
-                        "name": nama_user, 
-                        "type": tipe_tiket, 
-                        "member": p_member, 
-                        "sesi": p_sesi, 
-                        "jalur": p_jalur
-                    }).execute()
-                    st.rerun()
+                    # PREVENTIF: Cek data ganda (Case-insensitive)
+                    check = supabase.table("srs_schedule").select("*")\
+                        .ilike("name", nama_user.strip())\
+                        .eq("type", tipe_tiket)\
+                        .eq("member", p_member)\
+                        .eq("sesi", p_sesi).execute()
+                    
+                    if check.data:
+                        st.error(f"Ups! Nama '{nama_user}' sudah terdaftar untuk {p_member} di {p_sesi}.")
+                    else:
+                        supabase.table("srs_schedule").insert({
+                            "name": nama_user.strip(), "type": tipe_tiket, 
+                            "member": p_member, "sesi": p_sesi, "jalur": p_jalur
+                        }).execute()
+                        st.rerun()
                 elif not nama_user:
                     st.warning("Harap isi Nama Kamu di kolom atas!")
         else:
@@ -99,34 +105,38 @@ def form_input_srs():
             elif uploaded_file is not None and db_connected:
                 try:
                     df_upload = pd.read_csv(uploaded_file)
-                    records_to_insert = []
+                    new_records = []
                     
                     for _, row in df_upload.iterrows():
-                        # Cek apakah kolom-kolom yang dibutuhkan ada di dalam CSV
                         if all(col in df_upload.columns for col in ['Member', 'Sesi', 'Jalur', 'Tipe Tiket']):
+                            t_raw = str(row['Tipe Tiket']).strip()
+                            tipe_tiket_final = "2-Shot" if "2shot" in t_raw.lower() or "2-shot" in t_raw.lower() else "Meet & Greet"
                             
-                            # Normalisasi "2Shot" menjadi "2-Shot" agar cocok dengan API
-                            t_tiket_raw = str(row['Tipe Tiket']).strip()
-                            if "2shot" in t_tiket_raw.lower() or "2-shot" in t_tiket_raw.lower():
-                                tipe_tiket_final = "2-Shot"
-                            else:
-                                tipe_tiket_final = "Meet & Greet"
-                                
-                            records_to_insert.append({
-                                "name": nama_user,
-                                "type": tipe_tiket_final,
-                                "member": str(row['Member']).strip(),
-                                "sesi": str(row['Sesi']).strip(),
-                                "jalur": str(row['Jalur']).strip()
-                            })
+                            m_val = str(row['Member']).strip()
+                            s_val = str(row['Sesi']).strip()
+                            
+                            # PREVENTIF: Cek Duplikat sebelum dimasukkan ke list batch
+                            dupe_check = supabase.table("srs_schedule").select("*")\
+                                .ilike("name", nama_user.strip())\
+                                .eq("type", tipe_tiket_final)\
+                                .eq("member", m_val)\
+                                .eq("sesi", s_val).execute()
+                            
+                            if not dupe_check.data:
+                                new_records.append({
+                                    "name": nama_user.strip(),
+                                    "type": tipe_tiket_final,
+                                    "member": m_val,
+                                    "sesi": s_val,
+                                    "jalur": str(row['Jalur']).strip()
+                                })
                     
-                    if records_to_insert:
-                        # Batch insert ke Supabase (mengirim banyak data sekaligus)
-                        supabase.table("srs_schedule").insert(records_to_insert).execute()
-                        st.success(f"Mantap! {len(records_to_insert)} tiket berhasil dimasukkan ke jadwalmu.")
+                    if new_records:
+                        supabase.table("srs_schedule").insert(new_records).execute()
+                        st.success(f"Mantap! {len(new_records)} jadwal baru berhasil dimasukkan.")
                         st.rerun()
                     else:
-                        st.error("Gagal mendeteksi kolom yang sesuai. Pastikan format CSV benar.")
+                        st.info("Semua jadwal di CSV ini sepertinya sudah pernah kamu input. Tidak ada data dobel yang ditambahkan.")
                         
                 except Exception as e:
                     st.error(f"Gagal memproses file CSV: {e}")
@@ -188,8 +198,7 @@ def render_grid_section(tipe):
         for _, row in df_sesi.iterrows():
             member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
             
-            # Anti-Duplikat nama (Jika user punya 2 tiket atau upload CSV yang sama 2x)
-            # dict.fromkeys() digunakan agar urutan namanya tetap berurutan dari waktu input pertama
+            # Anti-Duplikat visual (Jaga-jaga kalau ada data nyasar di DB)
             users_list = list(dict.fromkeys(users_list_raw)) if users_list_raw else []
             
             count = len(users_list)

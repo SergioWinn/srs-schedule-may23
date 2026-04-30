@@ -193,36 +193,42 @@ def render_grid_section(tipe):
         df_final = df_final[mask]
 
     for sesi in sorted(df_final['sesi'].unique().tolist()):
-        st.markdown(f"#### {sesi}")
         df_sesi = df_final[df_final['sesi'] == sesi]
         
-        html = '<div class="cards-grid">'
-        
-        # --- PERSIAPAN TEKS REKAP ---
+        # --- PERSIAPAN TEKS & HTML SEKALIGUS ---
         rekap_teks = f"🎫 [SRS] REKAP {tipe.upper()} - {sesi.upper()}\n\n"
         ada_isi = False
+        html_cards = '<div class="cards-grid">'
         
         for _, row in df_sesi.iterrows():
             member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
             
-            # Anti-Duplikat visual & Urutkan sesuai Abjad
+            # Anti-Duplikat & Urut Abjad
             users_list = sorted(list(dict.fromkeys(users_list_raw)), key=lambda x: str(x).lower()) if users_list_raw else []
             count = len(users_list)
             
-            # --- TAMBAH KE TEKS WA JIKA ADA ORANGNYA ---
+            # Tambah ke teks WA jika ada orangnya
             if count > 0:
                 ada_isi = True
                 rekap_teks += f"📍 {jalur} ({member}): {', '.join(users_list)}\n"
             
             card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")
-            html += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div></div>'
+            html_cards += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div></div>'
             
-        st.markdown(html + '</div>', unsafe_allow_html=True)
-        
-        # --- TAMPILKAN TOMBOL SALIN (HANYA JIKA ADA DATA) ---
-        if ada_isi:
-            with st.expander(f"📋 Klik untuk Salin Teks Rekap {sesi}"):
-                st.code(rekap_teks, language="text")
+        html_cards += '</div>'
+
+        # --- RENDER HEADER & TOMBOL SALIN SEJAJAR ---
+        col_head, col_copy = st.columns([5, 2]) # Membagi layar: 5 bagian untuk Judul, 2 bagian untuk Tombol
+        with col_head:
+            st.markdown(f"#### {sesi}")
+        with col_copy:
+            if ada_isi:
+                # Expander minimalis di sebelah kanan
+                with st.expander("📋 Salin Teks"):
+                    st.code(rekap_teks, language="text")
+
+        # --- RENDER KARTU GRID DI BAWAHNYA ---
+        st.markdown(html_cards, unsafe_allow_html=True)
 
 # Panggil fungsi fragment
 render_realtime_dashboard()

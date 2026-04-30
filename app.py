@@ -198,8 +198,8 @@ def render_grid_section(tipe):
         for _, row in df_sesi.iterrows():
             member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
             
-            # Anti-Duplikat visual (Jaga-jaga kalau ada data nyasar di DB)
-            users_list = list(dict.fromkeys(users_list_raw)) if users_list_raw else []
+            # Anti-Duplikat visual & Urutkan sesuai Abjad (Case-insensitive)
+            users_list = sorted(list(dict.fromkeys(users_list_raw)), key=lambda x: str(x).lower()) if users_list_raw else []
             
             count = len(users_list)
             card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")

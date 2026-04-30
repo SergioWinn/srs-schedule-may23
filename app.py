@@ -206,7 +206,6 @@ def render_grid_section(tipe):
         all_users_list.extend(users)
     unique_users = sorted(list(set(all_users_list)), key=lambda x: str(x).lower())
 
-    # --- UI MENU FILTER (VERSI STABIL) ---
     # --- UI MENU FILTER (VERSI UI/UX CLEAN) ---
     st.markdown(f"<h5>🎛️ Filter & Salin Rekap {tipe}</h5>", unsafe_allow_html=True)
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 2, 2, 1], vertical_alignment="bottom")
@@ -216,7 +215,8 @@ def render_grid_section(tipe):
             "Berdasarkan Sesi", 
             unique_sesi, 
             placeholder="Semua Sesi", 
-            max_selections=len(unique_sesi) - 1 if len(unique_sesi) > 1 else 1, # Trik hilangkan 'Select all'
+            # Batasi maksimal pilihan agar 'Select all' hilang secara paksa
+            max_selections=len(unique_sesi) if len(unique_sesi) > 0 else None,
             key=f"f_sesi_{tipe}"
         )
     with f_col2:
@@ -224,7 +224,7 @@ def render_grid_section(tipe):
             "Berdasarkan Member", 
             unique_member, 
             placeholder="Semua Member", 
-            max_selections=len(unique_member) - 1 if len(unique_member) > 1 else 1,
+            max_selections=len(unique_member) if len(unique_member) > 0 else None,
             key=f"f_member_{tipe}"
         )
     with f_col3:
@@ -232,7 +232,7 @@ def render_grid_section(tipe):
             "Berdasarkan Anak SRS", 
             unique_users, 
             placeholder="Semua Anak SRS", 
-            max_selections=len(unique_users) - 1 if len(unique_users) > 1 else 1,
+            max_selections=len(unique_users) if len(unique_users) > 0 else None,
             key=f"f_user_{tipe}"
         )
     # --- LOGIKA FILTER (KOSONG = TAMPIL SEMUA) ---
@@ -244,7 +244,8 @@ def render_grid_section(tipe):
     if f_user:
         df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in users for u in f_user))]
 
-    # --- MEMBUAT TEKS REKAP ---
+    # --- MEMBUAT TEKS MASTER COPY BERDASARKAN FILTER (FIXED) ---
+    # Tentukan Judul WA agar Pintar dan Kontekstual
     if f_user:
         judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(f_user).upper()}"
     elif f_member:
@@ -257,13 +258,20 @@ def render_grid_section(tipe):
     master_teks = f"{judul_rekap}\n\n"
     ada_master_isi = False
     
+    # KUNCI PERBAIKAN: Looping menggunakan df_filtered (data yang sudah disaring di layar)
     for sesi in sorted(df_filtered['sesi'].unique().tolist()):
         df_s = df_filtered[df_filtered['sesi'] == sesi]
         sesi_text = ""
+        
         for _, row in df_s.iterrows():
+            # Hanya ambil user yang valid (bukan list kosong)
             users_clean = sorted(list(dict.fromkeys(row['nama_user'])), key=lambda x: str(x).lower())
+            
+            # Jika sedang filter member, kita tetap ingin jalur itu muncul di teks WA
+            # Jika sedang filter Anak SRS, kita hanya ingin jalur yang ada nama anak tersebut
             if len(users_clean) > 0:
                 sesi_text += f"📍 {row['jalur']} ({row['nama_member']}): {', '.join(users_clean)}\n"
+        
         if sesi_text:
             master_teks += f"🔹 {sesi}\n{sesi_text}\n"
             ada_master_isi = True

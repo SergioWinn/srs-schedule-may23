@@ -207,16 +207,34 @@ def render_grid_section(tipe):
     unique_users = sorted(list(set(all_users_list)), key=lambda x: str(x).lower())
 
     # --- UI MENU FILTER (VERSI STABIL) ---
+    # --- UI MENU FILTER (VERSI UI/UX CLEAN) ---
     st.markdown(f"<h5>🎛️ Filter & Salin Rekap {tipe}</h5>", unsafe_allow_html=True)
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 2, 2, 1], vertical_alignment="bottom")
     
     with f_col1:
-        f_sesi = st.multiselect("Berdasarkan Sesi", unique_sesi, placeholder="Semua Sesi", key=f"f_sesi_{tipe}")
+        f_sesi = st.multiselect(
+            "Berdasarkan Sesi", 
+            unique_sesi, 
+            placeholder="Semua Sesi", 
+            max_selections=len(unique_sesi) - 1 if len(unique_sesi) > 1 else 1, # Trik hilangkan 'Select all'
+            key=f"f_sesi_{tipe}"
+        )
     with f_col2:
-        f_member = st.multiselect("Berdasarkan Member", unique_member, placeholder="Semua Member", key=f"f_member_{tipe}")
+        f_member = st.multiselect(
+            "Berdasarkan Member", 
+            unique_member, 
+            placeholder="Semua Member", 
+            max_selections=len(unique_member) - 1 if len(unique_member) > 1 else 1,
+            key=f"f_member_{tipe}"
+        )
     with f_col3:
-        f_user = st.multiselect("Berdasarkan Anak SRS", unique_users, placeholder="Semua Anak SRS", key=f"f_user_{tipe}")
-        
+        f_user = st.multiselect(
+            "Berdasarkan Anak SRS", 
+            unique_users, 
+            placeholder="Semua Anak SRS", 
+            max_selections=len(unique_users) - 1 if len(unique_users) > 1 else 1,
+            key=f"f_user_{tipe}"
+        )
     # --- LOGIKA FILTER (KOSONG = TAMPIL SEMUA) ---
     df_filtered = df_final.copy()
     if f_sesi:

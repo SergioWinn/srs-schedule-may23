@@ -228,17 +228,18 @@ def render_grid_section(tipe):
             
         html_cards += '</div>'
 
-        # --- TAMPILAN JUDUL & TOMBOL COPY (TANPA PREVIEW) ---
-        col_head, col_copy = st.columns([5, 2])
+        # --- TAMPILAN JUDUL & TOMBOL COPY (ICON ONLY) ---
+        # Rasio kolom 12:1 dan sejajar tengah (center) agar icon presisi dengan teks Sesi
+        col_head, col_copy = st.columns([12, 1], vertical_alignment="center")
         with col_head:
             st.markdown(f"#### {sesi}")
         with col_copy:
             if ada_isi:
-                # Tombol instan langsung eksekusi tanpa dropdown
+                # Tombol instan murni ICON
                 st_copy_to_clipboard(
                     text=rekap_teks,
-                    before_copy_label=f"📋 Salin {sesi}",
-                    after_copy_label="✅ Tersalin!",
+                    before_copy_label="📋",  # Saat belum dicopy (Hanya icon)
+                    after_copy_label="✅",   # Saat sukses dicopy (Hanya icon)
                     key=f"copy_{tipe}_{sesi}"
                 )
 

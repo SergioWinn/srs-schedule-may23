@@ -36,7 +36,7 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
 
 /* Merapatkan judul Sesi */
-h4 { margin-bottom: -15px !important; padding-bottom: 0px !important; }
+h4 { margin-top: 10px !important; margin-bottom: -15px !important; padding-bottom: 0px !important; }
 .st-copy-to-clipboard-btn { margin-top: -5px; }
 
 /* Mengakali padding bawaan elemen container Streamlit */
@@ -229,17 +229,18 @@ def render_grid_section(tipe):
         html_cards += '</div>'
 
         # --- TAMPILAN JUDUL & TOMBOL COPY (ICON ONLY) ---
-        # Rasio kolom 12:1 dan sejajar tengah (center) agar icon presisi dengan teks Sesi
-        col_head, col_copy = st.columns([12, 1], vertical_alignment="center")
+        # Rasio kolom diubah jadi 20:1 biar tombol super mojok, dan pakai alignment "bottom"
+        col_head, col_copy = st.columns([20, 1], vertical_alignment="bottom")
         with col_head:
+            # Judul Sesi
             st.markdown(f"#### {sesi}")
         with col_copy:
             if ada_isi:
                 # Tombol instan murni ICON
                 st_copy_to_clipboard(
                     text=rekap_teks,
-                    before_copy_label="📋",  # Saat belum dicopy (Hanya icon)
-                    after_copy_label="✅",   # Saat sukses dicopy (Hanya icon)
+                    before_copy_label="📋",  
+                    after_copy_label="✅",   
                     key=f"copy_{tipe}_{sesi}"
                 )
 

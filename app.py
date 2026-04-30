@@ -244,11 +244,13 @@ def render_grid_section(tipe):
     if f_user:
         df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in users for u in f_user))]
 
-    # --- LOGIKA MASTER COPY YANG SUDAH TOBAT (SINKRON DENGAN FILTER) ---
-    # 1. Tentukan judul berdasarkan apa yang dipilih user
+    # --- LOGIKA MASTER COPY: SINKRONISASI TOTAL ---
+    
+    # 1. Pastikan Judul mengikuti Filter
     if f_user:
         judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(f_user).upper()}"
     elif f_member:
+        # Gunakan list member yang dipilih di filter
         judul_rekap = f"🎫 [SRS] REKAP MEMBER {tipe.upper()} - {', '.join(f_member).upper()}"
     elif f_sesi:
         judul_rekap = f"🎫 [SRS] REKAP {tipe.upper()} - {', '.join(f_sesi).upper()}"
@@ -258,8 +260,7 @@ def render_grid_section(tipe):
     master_teks = f"{judul_rekap}\n\n"
     ada_master_isi = False
     
-    # 2. Looping HANYA dari data yang sudah difilter (df_filtered)
-    # Kita urutkan sesinya biar rapi dari Sesi 1, 2, dst.
+    # 2. Ambil Sesi yang ada di data yang SUDAH DIFILTER saja
     sesi_tersaring = sorted(df_filtered['sesi'].unique().tolist())
     
     for sesi in sesi_tersaring:
@@ -267,15 +268,15 @@ def render_grid_section(tipe):
         sesi_text = ""
         
         for _, row in df_s.iterrows():
-            # Ambil list anak SRS di jalur tersebut
-            users_clean = sorted(list(dict.fromkeys(row['nama_user'])), key=lambda x: str(x).lower())
+            # Ambil list nama anak SRS
+            users_in_row = row['nama_user']
+            users_clean = sorted(list(dict.fromkeys(users_in_row)), key=lambda x: str(x).lower()) if users_in_row else []
             
-            # KUNCI: Cek apakah ada isinya. Kalau lagi filter member tapi jalurnya kosong, 
-            # tetap skip biar teks WA-nya ringkas.
+            # KUNCI: Cek apakah ada anak SRS di jalur tersebut
             if len(users_clean) > 0:
                 sesi_text += f"📍 {row['jalur']} ({row['nama_member']}): {', '.join(users_clean)}\n"
         
-        # Kalau sesi ini ada isinya, baru tambahkan ke teks utama
+        # Sesi hanya dimasukkan ke teks WA jika ada isinya
         if sesi_text:
             master_teks += f"🔹 {sesi}\n{sesi_text}\n"
             ada_master_isi = True

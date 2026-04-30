@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from supabase import create_client
 from st_copy_to_clipboard import st_copy_to_clipboard
+import hashlib
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="SRS - LOVE DREAM PASSION", page_icon="🎫", layout="wide")
@@ -34,10 +35,11 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 .live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
 
-/* Normalisasi Judul */
-h4 { padding-top: 15px !important; margin-bottom: 0px !important; }
+/* Normalisasi Judul HTML agar tidak ada icon rantai */
+h1, h3, h4, h5 { margin-bottom: 0px !important; font-weight: 800 !important; }
+h4 { padding-top: 15px !important; color: #f8fafc; }
+h5 { color: #94a3b8; font-size: 1rem !important; }
 
-/* Styling khusus untuk memisahkan filter & konten */
 hr { margin-top: 5px; margin-bottom: 10px; border-color: rgba(255,255,255,0.1); }
 </style>
 """
@@ -108,12 +110,10 @@ def form_input_srs():
             st.warning("API JKT48 sedang down.")
 
     with tab_csv:
-        st.info("Bisa pilih/blok banyak file CSV sekaligus!")
         uploaded_files = st.file_uploader("Pilih file CSV", type=["csv"], accept_multiple_files=True)
-        
         if st.button("Simpan dari CSV", type="primary", use_container_width=True):
             if not nama_user:
-                st.warning("Harap isi Nama Kamu di kolom atas sebelum upload CSV!")
+                st.warning("Harap isi Nama Kamu!")
             elif uploaded_files and db_connected:
                 try:
                     new_records = []
@@ -123,44 +123,25 @@ def form_input_srs():
                             if all(col in df_upload.columns for col in ['Member', 'Sesi', 'Jalur', 'Tipe Tiket']):
                                 t_raw = str(row['Tipe Tiket']).strip()
                                 tipe_tiket_final = "2-Shot" if "2shot" in t_raw.lower() or "2-shot" in t_raw.lower() else "Meet & Greet"
-                                
                                 m_val = str(row['Member']).strip()
                                 s_val = str(row['Sesi']).strip()
                                 
-                                dupe_check = supabase.table("srs_schedule").select("*")\
-                                    .ilike("name", nama_user.strip())\
-                                    .eq("type", tipe_tiket_final)\
-                                    .eq("member", m_val)\
-                                    .eq("sesi", s_val).execute()
-                                
+                                dupe_check = supabase.table("srs_schedule").select("*").ilike("name", nama_user.strip()).eq("type", tipe_tiket_final).eq("member", m_val).eq("sesi", s_val).execute()
                                 if not dupe_check.data:
-                                    new_records.append({
-                                        "name": nama_user.strip(),
-                                        "type": tipe_tiket_final,
-                                        "member": m_val,
-                                        "sesi": s_val,
-                                        "jalur": str(row['Jalur']).strip()
-                                    })
+                                    new_records.append({"name": nama_user.strip(), "type": tipe_tiket_final, "member": m_val, "sesi": s_val, "jalur": str(row['Jalur']).strip()})
                     
                     if new_records:
                         supabase.table("srs_schedule").insert(new_records).execute()
-                        st.success(f"Mantap! {len(new_records)} jadwal baru berhasil dimasukkan.")
                         st.rerun()
-                    else:
-                        st.info("Semua jadwal di file-file CSV ini sepertinya sudah pernah kamu input. Tidak ada data dobel yang ditambahkan.")
-                        
                 except Exception as e:
-                    st.error(f"Gagal memproses file CSV: {e}")
-            else:
-                st.warning("Pilih minimal satu file CSV terlebih dahulu!")
+                    st.error(f"Eror: {e}")
 
-# --- 5. UI UTAMA ---
+# --- 5. UI UTAMA (Clean Headers) ---
 col_title, col_btn = st.columns([3, 1], vertical_alignment="center")
 with col_title:
-    # Menggunakan HTML tag <h1> dan <h3> agar ikon rantai bawaan Streamlit hilang
     st.markdown("<h1>SUMBER REZEKI SQUAD</h1>", unsafe_allow_html=True)
     st.markdown("<h3>Meet & Greet Festival: LOVE DREAM PASSION</h3>", unsafe_allow_html=True)
-    st.markdown('<div class="live-badge"><span class="live-dot"></span> REAL-TIME REKAP</div>', unsafe_allow_html=True)
+    st.markdown('<div class="live-badge" style="margin-top:10px;"><span class="live-dot"></span> REAL-TIME REKAP</div>', unsafe_allow_html=True)
 
 with col_btn:
     if st.button("➕ INPUT JADWALMU", type="primary", use_container_width=True):
@@ -168,15 +149,12 @@ with col_btn:
 
 st.divider()
 
-# --- 6. RENDER GRID DENGAN FRAGMENT ---
+# --- 6. RENDER GRID ---
 @st.fragment(run_every=5)
 def render_realtime_dashboard():
     tab1, tab2 = st.tabs(["📸 2-Shot", "🤝 Meet & Greet"])
-    
-    with tab1:
-        render_grid_section("2-Shot")
-    with tab2:
-        render_grid_section("Meet & Greet")
+    with tab1: render_grid_section("2-Shot")
+    with tab2: render_grid_section("Meet & Greet")
 
 def render_grid_section(tipe):
     df_master = fetch_jkt48_api(API_URLS[tipe])
@@ -186,136 +164,61 @@ def render_grid_section(tipe):
         if res.data:
             df_user = pd.DataFrame(res.data).rename(columns={"name": "nama_user", "member": "nama_member"})
 
-    if not df_master.empty:
-        if not df_user.empty:
-            grouped_user = df_user.groupby(['sesi', 'nama_member', 'jalur'])['nama_user'].apply(list).reset_index()
-            df_final = pd.merge(df_master, grouped_user, on=['sesi', 'nama_member', 'jalur'], how='left')
-        else:
-            df_final = df_master.copy()
-            df_final['nama_user'] = None
-    else:
-        return
+    if df_master.empty: return
 
+    df_final = pd.merge(df_master, df_user.groupby(['sesi', 'nama_member', 'jalur'])['nama_user'].apply(list).reset_index(), on=['sesi', 'nama_member', 'jalur'], how='left') if not df_user.empty else df_master.assign(nama_user=None)
     df_final['nama_user'] = df_final['nama_user'].apply(lambda x: x if isinstance(x, list) else [])
     
-    # --- DATA UNTUK FILTER ---
     unique_sesi = sorted(df_final['sesi'].unique().tolist())
     unique_member = sorted(df_final['nama_member'].unique().tolist())
-    all_users_list = []
-    for users in df_final['nama_user']:
-        all_users_list.extend(users)
-    unique_users = sorted(list(set(all_users_list)), key=lambda x: str(x).lower())
+    all_users = sorted(list(set([u for sub in df_final['nama_user'] for u in sub])), key=str.lower)
 
-    # --- UI MENU FILTER (VERSI UI/UX CLEAN) ---
+    # --- UI FILTER (ANTI SELECT-ALL) ---
     st.markdown(f"<h5>🎛️ Filter & Salin Rekap {tipe}</h5>", unsafe_allow_html=True)
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 2, 2, 1], vertical_alignment="bottom")
     
-    with f_col1:
-        f_sesi = st.multiselect(
-            "Berdasarkan Sesi", 
-            unique_sesi, 
-            placeholder="Semua Sesi", 
-            # Batasi maksimal pilihan agar 'Select all' hilang secara paksa
-            max_selections=len(unique_sesi) if len(unique_sesi) > 0 else None,
-            key=f"f_sesi_{tipe}"
-        )
-    with f_col2:
-        f_member = st.multiselect(
-            "Berdasarkan Member", 
-            unique_member, 
-            placeholder="Semua Member", 
-            max_selections=len(unique_member) if len(unique_member) > 0 else None,
-            key=f"f_member_{tipe}"
-        )
-    with f_col3:
-        f_user = st.multiselect(
-            "Berdasarkan Anak SRS", 
-            unique_users, 
-            placeholder="Semua Anak SRS", 
-            max_selections=len(unique_users) if len(unique_users) > 0 else None,
-            key=f"f_user_{tipe}"
-        )
-    # --- LOGIKA FILTER (KOSONG = TAMPIL SEMUA) ---
+    with f_col1: f_sesi = st.multiselect("Berdasarkan Sesi", unique_sesi, placeholder="Semua Sesi", max_selections=len(unique_sesi), key=f"f_s_{tipe}")
+    with f_col2: f_member = st.multiselect("Berdasarkan Member", unique_member, placeholder="Semua Member", max_selections=len(unique_member), key=f"f_m_{tipe}")
+    with f_col3: f_user = st.multiselect("Berdasarkan Anak SRS", all_users, placeholder="Semua Anak SRS", max_selections=len(all_users), key=f"f_u_{tipe}")
+
     df_filtered = df_final.copy()
-    if f_sesi:
-        df_filtered = df_filtered[df_filtered['sesi'].isin(f_sesi)]
-    if f_member:
-        df_filtered = df_filtered[df_filtered['nama_member'].isin(f_member)]
-    if f_user:
-        df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in users for u in f_user))]
+    if f_sesi: df_filtered = df_filtered[df_filtered['sesi'].isin(f_sesi)]
+    if f_member: df_filtered = df_filtered[df_filtered['nama_member'].isin(f_member)]
+    if f_user: df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in users for u in f_user))]
 
-    # --- LOGIKA MASTER COPY (VERSI ANTI-NYANGKUT) ---
-    # Gunakan list comprehension agar tidak ada data sisa dari looping sebelumnya
-    judul_user = [u for u in f_user]
-    judul_member = [m for m in f_member]
-    judul_sesi = [s for s in f_sesi]
+    # --- MASTER COPY LOGIC (ANTI-NYANGKUT) ---
+    j_u, j_m, j_s = list(f_user), list(f_member), list(f_sesi)
+    judul = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(j_u).upper()}" if j_u else f"🎫 [SRS] REKAP MEMBER {tipe.upper()} - {', '.join(j_m).upper()}" if j_m else f"🎫 [SRS] REKAP {tipe.upper()} - {', '.join(j_s).upper()}" if j_s else f"🎫 [SRS] REKAP KESELURUHAN {tipe.upper()}"
 
-    if judul_user:
-        judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(judul_user).upper()}"
-    elif judul_member:
-        judul_rekap = f"🎫 [SRS] REKAP MEMBER {tipe.upper()} - {', '.join(judul_member).upper()}"
-    elif judul_sesi:
-        judul_rekap = f"🎫 [SRS] REKAP {tipe.upper()} - {', '.join(judul_sesi).upper()}"
-    else:
-        judul_rekap = f"🎫 [SRS] REKAP KESELURUHAN {tipe.upper()}"
-
-    # Reset teks rekap setiap kali filter berubah
-    final_rekap_lines = [f"{judul_rekap}\n"]
-    ada_isi_rekap = False
-    
-    # Ambil sesi yang memang muncul di df_filtered saja
-    list_sesi_aktif = sorted(df_filtered['sesi'].unique().tolist())
-    
-    for s_name in list_sesi_aktif:
+    rekap_lines = [f"{judul}\n"]
+    ada_isi = False
+    for s_name in sorted(df_filtered['sesi'].unique().tolist()):
         df_temp = df_filtered[df_filtered['sesi'] == s_name]
-        jalur_lines = []
-        
-        for _, r in df_temp.iterrows():
-            names = sorted(list(set(r['nama_user']))) if r['nama_user'] else []
-            if names:
-                jalur_lines.append(f"📍 {r['jalur']} ({r['nama_member']}): {', '.join(names)}")
-        
+        jalur_lines = [f"📍 {r['jalur']} ({r['nama_member']}): {', '.join(sorted(list(set(r['nama_user']))))}" for _, r in df_temp.iterrows() if r['nama_user']]
         if jalur_lines:
-            final_rekap_lines.append(f"🔹 {s_name}")
-            final_rekap_lines.extend(jalur_lines)
-            final_rekap_lines.append("") # Baris kosong antar sesi
-            ada_isi_rekap = True
+            rekap_lines.append(f"🔹 {s_name}"); rekap_lines.extend(jalur_lines); rekap_lines.append(""); ada_isi = True
 
-    master_teks_fix = "\n".join(final_rekap_lines)
-
+    final_text = "\n".join(rekap_lines)
     with f_col4:
-        # Gunakan kunci dinamis (hash) agar tombol dipaksa render ulang saat teks berubah
-        import hashlib
-        text_hash = hashlib.md5(master_teks_fix.encode()).hexdigest()[:8]
-        
-        if ada_isi_rekap:
-            st_copy_to_clipboard(
-                text=master_teks_fix,
-                before_copy_label="📋 Salin",
-                after_copy_label="✅ Tersalin!",
-                key=f"btn_{tipe}_{text_hash}" # Key berubah = tombol refresh total
-            )
-        else:
-            st.button("🚫 Kosong", disabled=True, key=f"empty_{tipe}_{text_hash}", use_container_width=True)
-            
+        t_hash = hashlib.md5(final_text.encode()).hexdigest()[:8]
+        if ada_isi: st_copy_to_clipboard(text=final_text, before_copy_label="📋 Salin", after_copy_label="✅", key=f"cp_{tipe}_{t_hash}")
+        else: st.button("🚫", disabled=True, key=f"ex_{tipe}_{t_hash}", use_container_width=True)
+
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # --- RENDER KOTAK ---
+    # --- RENDER KOTAK (Clean Headers) ---
     for sesi in sorted(df_filtered['sesi'].unique().tolist()):
         df_sesi = df_filtered[df_filtered['sesi'] == sesi]
         st.markdown(f"<h4>{sesi}</h4>", unsafe_allow_html=True)
         
         html_cards = '<div class="cards-grid">'
         for _, row in df_sesi.iterrows():
-            member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
-            users_list = sorted(list(dict.fromkeys(users_list_raw)), key=lambda x: str(x).lower()) if users_list_raw else []
-            count = len(users_list)
-            
-            card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")
-            html_cards += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div></div>'
-            
+            users = sorted(list(dict.fromkeys(row['nama_user']))) if row['nama_user'] else []
+            count = len(users)
+            card_class, users_str = ("active", ", ".join(users)) if count > 0 else ("empty", "Belum ada anak SRS")
+            html_cards += f'<div class="srs-card {card_class}"><div class="c-jalur">{row["jalur"]}</div><div class="c-member">{row["nama_member"]}</div><div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div></div>'
+        
         html_cards += '</div>'
         st.markdown(html_cards, unsafe_allow_html=True)
 
-# Panggil fungsi fragment
 render_realtime_dashboard()

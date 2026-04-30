@@ -157,8 +157,9 @@ def form_input_srs():
 # --- 5. UI UTAMA ---
 col_title, col_btn = st.columns([3, 1], vertical_alignment="center")
 with col_title:
-    st.title("SUMBER REZEKI SQUAD")
-    st.subheader("Meet & Greet Festival: LOVE DREAM PASSION")
+    # Menggunakan HTML tag <h1> dan <h3> agar ikon rantai bawaan Streamlit hilang
+    st.markdown("<h1>SUMBER REZEKI SQUAD</h1>", unsafe_allow_html=True)
+    st.markdown("<h3>Meet & Greet Festival: LOVE DREAM PASSION</h3>", unsafe_allow_html=True)
     st.markdown('<div class="live-badge"><span class="live-dot"></span> REAL-TIME REKAP</div>', unsafe_allow_html=True)
 
 with col_btn:
@@ -208,16 +209,34 @@ def render_grid_section(tipe):
     unique_users = sorted(list(set(all_users_list)), key=lambda x: str(x).lower())
 
     # --- UI MENU FILTER & MASTER COPY ---
-    st.markdown(f"##### 🎛️ Filter & Salin Rekap {tipe}")
+    st.markdown(f"<h5>🎛️ Filter & Salin Rekap {tipe}</h5>", unsafe_allow_html=True)
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 2, 2, 1], vertical_alignment="bottom")
     
     with f_col1:
-        f_sesi = st.multiselect("Berdasarkan Sesi", unique_sesi, placeholder="Semua Sesi", key=f"f_sesi_{tipe}")
+        f_sesi = st.multiselect(
+            "Berdasarkan Sesi", 
+            unique_sesi, 
+            placeholder="Pilih... (Kosong = Semua)", 
+            help="Biarkan kosong jika ingin melihat semua Sesi",
+            key=f"f_sesi_{tipe}"
+        )
     with f_col2:
-        f_member = st.multiselect("Berdasarkan Member", unique_member, placeholder="Semua Member", key=f"f_member_{tipe}")
+        f_member = st.multiselect(
+            "Berdasarkan Member", 
+            unique_member, 
+            placeholder="Pilih... (Kosong = Semua)", 
+            help="Biarkan kosong jika ingin melihat semua Member",
+            key=f"f_member_{tipe}"
+        )
     with f_col3:
-        f_user = st.multiselect("Berdasarkan Anak SRS", unique_users, placeholder="Cari Nama...", key=f"f_user_{tipe}")
-        
+        f_user = st.multiselect(
+            "Berdasarkan Anak SRS", 
+            unique_users, 
+            placeholder="Pilih... (Kosong = Semua)", 
+            help="Biarkan kosong jika ingin melihat semua jadwal",
+            key=f"f_user_{tipe}"
+        )
+            
     # --- PROSES FILTER DATA ---
     df_filtered = df_final.copy()
     if f_sesi:
@@ -275,7 +294,7 @@ def render_grid_section(tipe):
         df_sesi = df_filtered[df_filtered['sesi'] == sesi]
         
         # Judul Sesi sekarang bersih, tanpa tombol disebelahnya
-        st.markdown(f"#### {sesi}")
+        st.markdown(f"<h4>{sesi}</h4>", unsafe_allow_html=True)
         
         html_cards = '<div class="cards-grid">'
         for _, row in df_sesi.iterrows():

@@ -12,8 +12,16 @@ css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 html, body, .stApp { font-family: 'Inter', sans-serif; }
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: -15px; margin-bottom: 30px; }
-h4 { margin-bottom: -10px !important; padding-bottom: 0px !important; }
+
+/* Menarik grid jauh ke atas untuk melawan gap bawaan Streamlit */
+.cards-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+    gap: 15px; 
+    margin-top: -35px !important; 
+    margin-bottom: 40px; 
+}
+
 .srs-card { background: rgba(30, 41, 59, 0.5); border-radius: 15px; padding: 20px 15px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; text-align: center; height: 100%; border-bottom: 5px solid #475569; }
 .srs-card.active { border-bottom: 5px solid #10B981; }
 .c-jalur { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
@@ -26,8 +34,15 @@ h4 { margin-bottom: -10px !important; padding-bottom: 0px !important; }
 .live-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; color: #10B981; background: rgba(16,185,129,0.1); padding: 5px 15px; border-radius: 30px; border: 1px solid rgba(16,185,129,0.2); }
 .live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
-/* Styling tambahan agar tombol copy terlihat lebih menyatu */
+
+/* Merapatkan judul Sesi */
+h4 { margin-bottom: -15px !important; padding-bottom: 0px !important; }
 .st-copy-to-clipboard-btn { margin-top: -5px; }
+
+/* Mengakali padding bawaan elemen container Streamlit */
+[data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
+    gap: 0rem !important;
+}
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)

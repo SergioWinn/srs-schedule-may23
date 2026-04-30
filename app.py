@@ -12,8 +12,13 @@ st.set_page_config(page_title="SRS - LOVE DREAM PASSION", page_icon="🎫", layo
 css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-html, body, .stApp { font-family: 'Inter', sans-serif; }
 
+/* Font & Global Reset */
+html, body, .stApp { 
+    font-family: 'Inter', sans-serif; 
+}
+
+/* 1. FORCE DARK THEME VIBE (Agar Light Mode tetap cakep) */
 .cards-grid { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
@@ -22,25 +27,127 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
     margin-bottom: 30px; 
 }
 
-.srs-card { background: rgba(30, 41, 59, 0.5); border-radius: 15px; padding: 20px 15px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; text-align: center; height: 100%; border-bottom: 5px solid #475569; }
-.srs-card.active { border-bottom: 5px solid #10B981; }
-.c-jalur { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
-.c-member { font-weight: 800; font-size: 18px; color: #f8fafc; margin-bottom: 15px; }
-.c-users { padding: 10px; border-radius: 12px; margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
-.srs-card.active .c-users { background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); }
-.srs-card.empty .c-users { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
-.user-count { font-size: 11px; text-transform: uppercase; font-weight: 800; }
-.user-names { font-size: 13px; font-weight: 600; line-height: 1.4; }
-.live-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; color: #10B981; background: rgba(16,185,129,0.1); padding: 5px 15px; border-radius: 30px; border: 1px solid rgba(16,185,129,0.2); }
-.live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
-@keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
+/* Kartu dibuat solid agar tidak tembus pandang di Light Mode */
+.srs-card { 
+    background: #1e293b !important; 
+    color: #f8fafc !important;
+    border-radius: 15px; 
+    padding: 20px 15px; 
+    border: 1px solid rgba(255,255,255,0.1); 
+    display: flex; 
+    flex-direction: column; 
+    text-align: center; 
+    height: 100%; 
+    border-bottom: 5px solid #475569; 
+}
 
-/* Normalisasi Judul HTML agar tidak ada icon rantai */
-h1, h3, h4, h5 { margin-bottom: 0px !important; font-weight: 800 !important; }
-h4 { padding-top: 15px !important; color: #f8fafc; }
+.srs-card.active { 
+    border-bottom: 5px solid #10B981; 
+}
+
+.c-jalur { 
+    font-size: 11px; 
+    color: #94a3b8 !important; 
+    font-weight: 700; 
+    text-transform: uppercase; 
+    margin-bottom: 5px; 
+}
+
+.c-member { 
+    font-weight: 800; 
+    font-size: 18px; 
+    color: #f8fafc !important; 
+    margin-bottom: 15px; 
+}
+
+.c-users { 
+    padding: 10px; 
+    border-radius: 12px; 
+    margin-top: auto; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 4px; 
+}
+
+.srs-card.active .c-users { 
+    background: rgba(16,185,129,0.15); 
+    color: #10B981 !important; 
+    border: 1px solid rgba(16,185,129,0.2); 
+}
+
+.srs-card.empty .c-users { 
+    background: rgba(148, 163, 184, 0.1); 
+    color: #94a3b8 !important; 
+    border: 1px solid rgba(148, 163, 184, 0.2); 
+}
+
+.user-count { 
+    font-size: 11px; 
+    text-transform: uppercase; 
+    font-weight: 800; 
+}
+
+.user-names { 
+    font-size: 13px; 
+    font-weight: 600; 
+    line-height: 1.4; 
+    color: #f8fafc !important;
+}
+
+/* 2. LIVE BADGE ANIMATION */
+.live-badge { 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 8px; 
+    font-weight: 700; 
+    font-size: 12px; 
+    color: #10B981; 
+    background: rgba(16,185,129,0.1); 
+    padding: 5px 15px; 
+    border-radius: 30px; 
+    border: 1px solid rgba(16,185,129,0.2); 
+}
+
+.live-dot { 
+    height: 8px; 
+    width: 8px; 
+    background: #10B981; 
+    border-radius: 50%; 
+    animation: blink 2s infinite; 
+}
+
+@keyframes blink { 
+    0%, 100% { opacity: 1; transform: scale(1); } 
+    50% { opacity: 0.3; transform: scale(1.2); } 
+}
+
+/* 3. JUDUL & LOGO RANTAI REMOVAL */
+/* Membunuh ikon rantai (anchor link) secara paksa */
+[data-testid="stHeaderActionElements"] {
+    display: none !important;
+}
+
+h1, h3, h4, h5 { 
+    margin-bottom: 0px !important; 
+    font-weight: 800 !important; 
+}
+
+/* Mengatur warna judul agar tetap kontras di Light/Dark mode */
+h1 { color: #f8fafc; }
+h3 { color: #94a3b8; }
+h4 { padding-top: 15px !important; }
 h5 { color: #94a3b8; font-size: 1rem !important; }
 
-hr { margin-top: 5px; margin-bottom: 10px; border-color: rgba(255,255,255,0.1); }
+hr { 
+    margin-top: 5px; 
+    margin-bottom: 10px; 
+    border-color: rgba(255,255,255,0.1); 
+}
+
+/* Khusus perbaikan warna teks filter agar terbaca di Light Mode */
+.stMultiSelect label p {
+    color: inherit !important;
+}
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)

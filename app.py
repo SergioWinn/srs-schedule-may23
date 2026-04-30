@@ -244,54 +244,60 @@ def render_grid_section(tipe):
     if f_user:
         df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in users for u in f_user))]
 
-    # --- LOGIKA MASTER COPY: SINKRONISASI TOTAL ---
-    
-    # 1. Pastikan Judul mengikuti Filter
-    if f_user:
-        judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(f_user).upper()}"
-    elif f_member:
-        # Gunakan list member yang dipilih di filter
-        judul_rekap = f"🎫 [SRS] REKAP MEMBER {tipe.upper()} - {', '.join(f_member).upper()}"
-    elif f_sesi:
-        judul_rekap = f"🎫 [SRS] REKAP {tipe.upper()} - {', '.join(f_sesi).upper()}"
+    # --- LOGIKA MASTER COPY (VERSI ANTI-NYANGKUT) ---
+    # Gunakan list comprehension agar tidak ada data sisa dari looping sebelumnya
+    judul_user = [u for u in f_user]
+    judul_member = [m for m in f_member]
+    judul_sesi = [s for s in f_sesi]
+
+    if judul_user:
+        judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(judul_user).upper()}"
+    elif judul_member:
+        judul_rekap = f"🎫 [SRS] REKAP MEMBER {tipe.upper()} - {', '.join(judul_member).upper()}"
+    elif judul_sesi:
+        judul_rekap = f"🎫 [SRS] REKAP {tipe.upper()} - {', '.join(judul_sesi).upper()}"
     else:
         judul_rekap = f"🎫 [SRS] REKAP KESELURUHAN {tipe.upper()}"
 
-    master_teks = f"{judul_rekap}\n\n"
-    ada_master_isi = False
+    # Reset teks rekap setiap kali filter berubah
+    final_rekap_lines = [f"{judul_rekap}\n"]
+    ada_isi_rekap = False
     
-    # 2. Ambil Sesi yang ada di data yang SUDAH DIFILTER saja
-    sesi_tersaring = sorted(df_filtered['sesi'].unique().tolist())
+    # Ambil sesi yang memang muncul di df_filtered saja
+    list_sesi_aktif = sorted(df_filtered['sesi'].unique().tolist())
     
-    for sesi in sesi_tersaring:
-        df_s = df_filtered[df_filtered['sesi'] == sesi]
-        sesi_text = ""
+    for s_name in list_sesi_aktif:
+        df_temp = df_filtered[df_filtered['sesi'] == s_name]
+        jalur_lines = []
         
-        for _, row in df_s.iterrows():
-            # Ambil list nama anak SRS
-            users_in_row = row['nama_user']
-            users_clean = sorted(list(dict.fromkeys(users_in_row)), key=lambda x: str(x).lower()) if users_in_row else []
-            
-            # KUNCI: Cek apakah ada anak SRS di jalur tersebut
-            if len(users_clean) > 0:
-                sesi_text += f"📍 {row['jalur']} ({row['nama_member']}): {', '.join(users_clean)}\n"
+        for _, r in df_temp.iterrows():
+            names = sorted(list(set(r['nama_user']))) if r['nama_user'] else []
+            if names:
+                jalur_lines.append(f"📍 {r['jalur']} ({r['nama_member']}): {', '.join(names)}")
         
-        # Sesi hanya dimasukkan ke teks WA jika ada isinya
-        if sesi_text:
-            master_teks += f"🔹 {sesi}\n{sesi_text}\n"
-            ada_master_isi = True
+        if jalur_lines:
+            final_rekap_lines.append(f"🔹 {s_name}")
+            final_rekap_lines.extend(jalur_lines)
+            final_rekap_lines.append("") # Baris kosong antar sesi
+            ada_isi_rekap = True
+
+    master_teks_fix = "\n".join(final_rekap_lines)
 
     with f_col4:
-        if ada_master_isi:
+        # Gunakan kunci dinamis (hash) agar tombol dipaksa render ulang saat teks berubah
+        import hashlib
+        text_hash = hashlib.md5(master_teks_fix.encode()).hexdigest()[:8]
+        
+        if ada_isi_rekap:
             st_copy_to_clipboard(
-                text=master_teks,
+                text=master_teks_fix,
                 before_copy_label="📋 Salin",
                 after_copy_label="✅ Tersalin!",
-                key=f"master_copy_btn_{tipe}"
+                key=f"btn_{tipe}_{text_hash}" # Key berubah = tombol refresh total
             )
         else:
-            st.button("🚫 Kosong", disabled=True, key=f"btn_kosong_{tipe}", use_container_width=True)
-
+            st.button("🚫 Kosong", disabled=True, key=f"empty_{tipe}_{text_hash}", use_container_width=True)
+            
     st.markdown("<hr>", unsafe_allow_html=True)
 
     # --- RENDER KOTAK ---

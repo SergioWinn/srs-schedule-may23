@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from supabase import create_client
-from st_copy_to_clipboard import st_copy_to_clipboard  # <-- IMPORT BARU
+from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="SRS - LOVE DREAM PASSION", page_icon="🎫", layout="wide")
@@ -17,7 +17,7 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
     gap: 15px; 
-    margin-top: 10px; /* Jarak aman, tidak nabrak judul */
+    margin-top: 10px; 
     margin-bottom: 30px; 
 }
 
@@ -34,13 +34,11 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 .live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
 
-/* Judul dibikin normal jaraknya */
+/* Normalisasi Judul */
 h4 { padding-top: 15px !important; margin-bottom: 0px !important; }
 
-/* Menghilangkan gap bawaan container Streamlit */
-[data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
-    gap: 0rem !important;
-}
+/* Styling khusus untuk memisahkan filter & konten */
+hr { margin-top: 5px; margin-bottom: 10px; border-color: rgba(255,255,255,0.1); }
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -146,7 +144,7 @@ def form_input_srs():
                     
                     if new_records:
                         supabase.table("srs_schedule").insert(new_records).execute()
-                        st.success(f"Mantap! {len(new_records)} jadwal baru berhasil dimasukkan dari {len(uploaded_files)} file CSV.")
+                        st.success(f"Mantap! {len(new_records)} jadwal baru berhasil dimasukkan.")
                         st.rerun()
                     else:
                         st.info("Semua jadwal di file-file CSV ini sepertinya sudah pernah kamu input. Tidak ada data dobel yang ditambahkan.")
@@ -197,49 +195,98 @@ def render_grid_section(tipe):
     else:
         return
 
+    # Pastikan tipe data kolom list aman untuk diproses
     df_final['nama_user'] = df_final['nama_user'].apply(lambda x: x if isinstance(x, list) else [])
     
-    search_query = st.text_input(f"🔍 Cari Sesi / Member / Anak SRS di {tipe}...", key=f"search_{tipe}")
-    if search_query:
-        mask = df_final.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)
-        df_final = df_final[mask]
+    # --- MENGEKSTRAK DAFTAR NAMA UNTUK MENU FILTER ---
+    unique_sesi = sorted(df_final['sesi'].unique().tolist())
+    unique_member = sorted(df_final['nama_member'].unique().tolist())
+    
+    all_users_list = []
+    for users in df_final['nama_user']:
+        all_users_list.extend(users)
+    unique_users = sorted(list(set(all_users_list)), key=lambda x: str(x).lower())
 
-    for sesi in sorted(df_final['sesi'].unique().tolist()):
-        df_sesi = df_final[df_final['sesi'] == sesi]
+    # --- UI MENU FILTER & MASTER COPY ---
+    st.markdown(f"##### 🎛️ Filter & Salin Rekap {tipe}")
+    f_col1, f_col2, f_col3, f_col4 = st.columns([2, 2, 2, 1], vertical_alignment="bottom")
+    
+    with f_col1:
+        f_sesi = st.multiselect("Berdasarkan Sesi", unique_sesi, placeholder="Semua Sesi", key=f"f_sesi_{tipe}")
+    with f_col2:
+        f_member = st.multiselect("Berdasarkan Member", unique_member, placeholder="Semua Member", key=f"f_member_{tipe}")
+    with f_col3:
+        f_user = st.multiselect("Berdasarkan Anak SRS", unique_users, placeholder="Cari Nama...", key=f"f_user_{tipe}")
         
-        rekap_teks = f"🎫 [SRS] REKAP {tipe.upper()} - {sesi.upper()}\n\n"
-        ada_isi = False
+    # --- PROSES FILTER DATA ---
+    df_filtered = df_final.copy()
+    if f_sesi:
+        df_filtered = df_filtered[df_filtered['sesi'].isin(f_sesi)]
+    if f_member:
+        df_filtered = df_filtered[df_filtered['nama_member'].isin(f_member)]
+    if f_user:
+        # Filter: Tampilkan baris jika SATU SAJA nama dari f_user ada di jalur tersebut
+        df_filtered = df_filtered[df_filtered['nama_user'].apply(lambda users: any(u in users for u in f_user))]
+
+    # --- MEMBUAT TEKS MASTER COPY BERDASARKAN FILTER ---
+    # Tentukan Judul WA agar Pintar dan Kontekstual
+    if f_user:
+        judul_rekap = f"🎫 [SRS] JADWAL {tipe.upper()} - {', '.join(f_user).upper()}"
+    elif f_member:
+        judul_rekap = f"🎫 [SRS] REKAP MEMBER {tipe.upper()} - {', '.join(f_member).upper()}"
+    elif f_sesi:
+        judul_rekap = f"🎫 [SRS] REKAP {tipe.upper()} - {', '.join(f_sesi).upper()}"
+    else:
+        judul_rekap = f"🎫 [SRS] REKAP KESELURUHAN {tipe.upper()}"
+
+    master_teks = f"{judul_rekap}\n\n"
+    ada_master_isi = False
+    
+    # Looping hanya pada data yang sudah di-filter
+    for sesi in sorted(df_filtered['sesi'].unique().tolist()):
+        df_s = df_filtered[df_filtered['sesi'] == sesi]
+        sesi_text = ""
+        
+        for _, row in df_s.iterrows():
+            users_clean = sorted(list(dict.fromkeys(row['nama_user'])), key=lambda x: str(x).lower())
+            if len(users_clean) > 0:
+                sesi_text += f"📍 {row['jalur']} ({row['nama_member']}): {', '.join(users_clean)}\n"
+        
+        if sesi_text:
+            master_teks += f"🔹 {sesi}\n{sesi_text}\n"
+            ada_master_isi = True
+
+    with f_col4:
+        if ada_master_isi:
+            st_copy_to_clipboard(
+                text=master_teks,
+                before_copy_label="📋 Salin Rekap",
+                after_copy_label="✅ Tersalin!",
+                key=f"master_copy_btn_{tipe}"
+            )
+        else:
+            # Tombol abu-abu/mati kalau data filternya kosong (gak ada anak SRS)
+            st.button("🚫 Kosong", disabled=True, key=f"btn_kosong_{tipe}", use_container_width=True)
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # --- RENDER KOTAK TIMETABLE (MENGGUNAKAN DATA FILTER) ---
+    for sesi in sorted(df_filtered['sesi'].unique().tolist()):
+        df_sesi = df_filtered[df_filtered['sesi'] == sesi]
+        
+        # Judul Sesi sekarang bersih, tanpa tombol disebelahnya
+        st.markdown(f"#### {sesi}")
+        
         html_cards = '<div class="cards-grid">'
-        
         for _, row in df_sesi.iterrows():
             member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
-            
             users_list = sorted(list(dict.fromkeys(users_list_raw)), key=lambda x: str(x).lower()) if users_list_raw else []
             count = len(users_list)
-            
-            if count > 0:
-                ada_isi = True
-                rekap_teks += f"📍 {jalur} ({member}): {', '.join(users_list)}\n"
             
             card_class, users_str = ("active", ", ".join(users_list)) if count > 0 else ("empty", "Belum ada anak SRS")
             html_cards += f'<div class="srs-card {card_class}"><div class="c-jalur">{jalur}</div><div class="c-member">{member}</div><div class="c-users"><div class="user-count">👥 {count} ORANG</div><div class="user-names">{users_str}</div></div></div>'
             
         html_cards += '</div>'
-
-        # --- TAMPILAN JUDUL & TOMBOL COPY (ICON ONLY) ---
-        col_head, col_copy = st.columns([15, 1], vertical_alignment="center")
-        with col_head:
-            st.markdown(f"#### {sesi}")
-        with col_copy:
-            if ada_isi:
-                st_copy_to_clipboard(
-                    text=rekap_teks,
-                    before_copy_label="📋",  
-                    after_copy_label="✅",   
-                    key=f"copy_{tipe}_{sesi}"
-                )
-
-        # Render kotak-kotak member di bawahnya
         st.markdown(html_cards, unsafe_allow_html=True)
 
 # Panggil fungsi fragment

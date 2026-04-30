@@ -54,14 +54,13 @@ def fetch_jkt48_api(url):
 
 API_URLS = {"2-Shot": "https://jkt48.com/api/v1/exclusives/EX579E/bonus?lang=id", "Meet & Greet": "https://jkt48.com/api/v1/exclusives/EXE588/bonus?lang=id"}
 
-# --- 4. FORM INPUT MODAL (TANPA HAPUS, DENGAN PREVENTIF) ---
+# --- 4. FORM INPUT MODAL ---
 @st.dialog("📝 Input Jadwal SRS")
 def form_input_srs():
     nama_user = st.text_input("Nama Kamu (Panggilan SRS)", placeholder="Pastikan konsisten (contoh: Sergio)")
     
     tab_manual, tab_csv = st.tabs(["✍️ Input Manual", "📁 Upload CSV"])
     
-    # --- TAB MANUAL ---
     with tab_manual:
         tipe_tiket = st.radio("Tipe Tiket:", ["2-Shot", "Meet & Greet"], horizontal=True, key="manual_type")
         df_api = fetch_jkt48_api(API_URLS[tipe_tiket])
@@ -74,7 +73,6 @@ def form_input_srs():
             
             if st.button("Simpan Jadwal Manual", type="primary", use_container_width=True):
                 if nama_user and db_connected:
-                    # PREVENTIF: Cek data ganda (Case-insensitive)
                     check = supabase.table("srs_schedule").select("*")\
                         .ilike("name", nama_user.strip())\
                         .eq("type", tipe_tiket)\
@@ -94,54 +92,57 @@ def form_input_srs():
         else:
             st.warning("API JKT48 sedang down.")
 
-    # --- TAB CSV ---
+    # --- TAB CSV (UPGRADED: BISA MULTIPLE FILE) ---
     with tab_csv:
-        st.info("Upload file CSV jadwal yang didapat dari export tiket JKT48.")
-        uploaded_file = st.file_uploader("Pilih file CSV", type=["csv"])
+        st.info("Bisa pilih/blok banyak file CSV sekaligus!")
+        # FITUR BARU: accept_multiple_files=True
+        uploaded_files = st.file_uploader("Pilih file CSV", type=["csv"], accept_multiple_files=True)
         
         if st.button("Simpan dari CSV", type="primary", use_container_width=True):
             if not nama_user:
                 st.warning("Harap isi Nama Kamu di kolom atas sebelum upload CSV!")
-            elif uploaded_file is not None and db_connected:
+            elif uploaded_files and db_connected:
                 try:
-                    df_upload = pd.read_csv(uploaded_file)
                     new_records = []
                     
-                    for _, row in df_upload.iterrows():
-                        if all(col in df_upload.columns for col in ['Member', 'Sesi', 'Jalur', 'Tipe Tiket']):
-                            t_raw = str(row['Tipe Tiket']).strip()
-                            tipe_tiket_final = "2-Shot" if "2shot" in t_raw.lower() or "2-shot" in t_raw.lower() else "Meet & Greet"
-                            
-                            m_val = str(row['Member']).strip()
-                            s_val = str(row['Sesi']).strip()
-                            
-                            # PREVENTIF: Cek Duplikat sebelum dimasukkan ke list batch
-                            dupe_check = supabase.table("srs_schedule").select("*")\
-                                .ilike("name", nama_user.strip())\
-                                .eq("type", tipe_tiket_final)\
-                                .eq("member", m_val)\
-                                .eq("sesi", s_val).execute()
-                            
-                            if not dupe_check.data:
-                                new_records.append({
-                                    "name": nama_user.strip(),
-                                    "type": tipe_tiket_final,
-                                    "member": m_val,
-                                    "sesi": s_val,
-                                    "jalur": str(row['Jalur']).strip()
-                                })
+                    # Looping untuk membaca setiap file CSV yang diupload
+                    for uploaded_file in uploaded_files:
+                        df_upload = pd.read_csv(uploaded_file)
+                        
+                        for _, row in df_upload.iterrows():
+                            if all(col in df_upload.columns for col in ['Member', 'Sesi', 'Jalur', 'Tipe Tiket']):
+                                t_raw = str(row['Tipe Tiket']).strip()
+                                tipe_tiket_final = "2-Shot" if "2shot" in t_raw.lower() or "2-shot" in t_raw.lower() else "Meet & Greet"
+                                
+                                m_val = str(row['Member']).strip()
+                                s_val = str(row['Sesi']).strip()
+                                
+                                dupe_check = supabase.table("srs_schedule").select("*")\
+                                    .ilike("name", nama_user.strip())\
+                                    .eq("type", tipe_tiket_final)\
+                                    .eq("member", m_val)\
+                                    .eq("sesi", s_val).execute()
+                                
+                                if not dupe_check.data:
+                                    new_records.append({
+                                        "name": nama_user.strip(),
+                                        "type": tipe_tiket_final,
+                                        "member": m_val,
+                                        "sesi": s_val,
+                                        "jalur": str(row['Jalur']).strip()
+                                    })
                     
                     if new_records:
                         supabase.table("srs_schedule").insert(new_records).execute()
-                        st.success(f"Mantap! {len(new_records)} jadwal baru berhasil dimasukkan.")
+                        st.success(f"Mantap! {len(new_records)} jadwal baru berhasil dimasukkan dari {len(uploaded_files)} file CSV.")
                         st.rerun()
                     else:
-                        st.info("Semua jadwal di CSV ini sepertinya sudah pernah kamu input. Tidak ada data dobel yang ditambahkan.")
+                        st.info("Semua jadwal di file-file CSV ini sepertinya sudah pernah kamu input. Tidak ada data dobel yang ditambahkan.")
                         
                 except Exception as e:
                     st.error(f"Gagal memproses file CSV: {e}")
             else:
-                st.warning("Pilih file CSV terlebih dahulu!")
+                st.warning("Pilih minimal satu file CSV terlebih dahulu!")
 
 # --- 5. UI UTAMA ---
 col_title, col_btn = st.columns([3, 1], vertical_alignment="center")
@@ -198,7 +199,6 @@ def render_grid_section(tipe):
         for _, row in df_sesi.iterrows():
             member, jalur, users_list_raw = row['nama_member'], row['jalur'], row['nama_user']
             
-            # Anti-Duplikat visual & Urutkan sesuai Abjad (Case-insensitive)
             users_list = sorted(list(dict.fromkeys(users_list_raw)), key=lambda x: str(x).lower()) if users_list_raw else []
             
             count = len(users_list)

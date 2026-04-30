@@ -201,7 +201,7 @@ def render_grid_section(tipe):
     final_text = "\n".join(rekap_lines)
     with f_col4:
         t_hash = hashlib.md5(final_text.encode()).hexdigest()[:8]
-        if ada_isi: st_copy_to_clipboard(text=final_text, before_copy_label="📋 Salin", after_copy_label="✅", key=f"cp_{tipe}_{t_hash}")
+        if ada_isi: st_copy_to_clipboard(text=final_text, before_copy_label="📋", after_copy_label="✅", key=f"cp_{tipe}_{t_hash}")
         else: st.button("🚫", disabled=True, key=f"ex_{tipe}_{t_hash}", use_container_width=True)
 
     st.markdown("<hr>", unsafe_allow_html=True)

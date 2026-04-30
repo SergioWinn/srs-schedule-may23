@@ -12,7 +12,8 @@ css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 html, body, .stApp { font-family: 'Inter', sans-serif; }
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: -15px; margin-bottom: 30px; }
+h4 { margin-bottom: -10px !important; padding-bottom: 0px !important; }
 .srs-card { background: rgba(30, 41, 59, 0.5); border-radius: 15px; padding: 20px 15px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; text-align: center; height: 100%; border-bottom: 5px solid #475569; }
 .srs-card.active { border-bottom: 5px solid #10B981; }
 .c-jalur { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }

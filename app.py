@@ -13,13 +13,12 @@ css = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 html, body, .stApp { font-family: 'Inter', sans-serif; }
 
-/* Menarik grid jauh ke atas untuk melawan gap bawaan Streamlit */
 .cards-grid { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
     gap: 15px; 
-    margin-top: -35px !important; 
-    margin-bottom: 40px; 
+    margin-top: 10px; /* Jarak aman, tidak nabrak judul */
+    margin-bottom: 30px; 
 }
 
 .srs-card { background: rgba(30, 41, 59, 0.5); border-radius: 15px; padding: 20px 15px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; text-align: center; height: 100%; border-bottom: 5px solid #475569; }
@@ -35,11 +34,10 @@ html, body, .stApp { font-family: 'Inter', sans-serif; }
 .live-dot { height: 8px; width: 8px; background: #10B981; border-radius: 50%; animation: blink 2s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.2); } }
 
-/* Merapatkan judul Sesi */
-h4 { margin-top: 10px !important; margin-bottom: -15px !important; padding-bottom: 0px !important; }
-.st-copy-to-clipboard-btn { margin-top: -5px; }
+/* Judul dibikin normal jaraknya */
+h4 { padding-top: 15px !important; margin-bottom: 0px !important; }
 
-/* Mengakali padding bawaan elemen container Streamlit */
+/* Menghilangkan gap bawaan container Streamlit */
 [data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
     gap: 0rem !important;
 }
@@ -229,14 +227,11 @@ def render_grid_section(tipe):
         html_cards += '</div>'
 
         # --- TAMPILAN JUDUL & TOMBOL COPY (ICON ONLY) ---
-        # Rasio kolom diubah jadi 20:1 biar tombol super mojok, dan pakai alignment "bottom"
-        col_head, col_copy = st.columns([20, 1], vertical_alignment="bottom")
+        col_head, col_copy = st.columns([15, 1], vertical_alignment="center")
         with col_head:
-            # Judul Sesi
             st.markdown(f"#### {sesi}")
         with col_copy:
             if ada_isi:
-                # Tombol instan murni ICON
                 st_copy_to_clipboard(
                     text=rekap_teks,
                     before_copy_label="📋",  
